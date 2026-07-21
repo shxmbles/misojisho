@@ -19,7 +19,7 @@ To parse the xml file we need to grab the contents of each `<entry>`. Each `<ent
 `use_frequency` and `part_of_speech` are mapped to their own respective types to easily build off of them rather than have just a string. `UseFrequency` helps me sort relevant search results. `PartOfSpeech` lets me identify its part of speech, and if it is a verb, tell what kind of conjugations are needed.
 
 **Japanese to English Dictionary**
-All of the parsed entries are added in as `JpToEnglishWord`. These can be searched either in English or in Japanese. `UseFrequency` is used to help sort through the results along with whether the search term is an exact match — exact matches and higher use frequency are both weighted highest. Words may have multiple definitions so going off of the first definition helps sorting as well. 
+All of the parsed entries are added in as `JpToEnglishWord`. These can be searched either in English or in Japanese. `UseFrequency` is used to help sort through the results along with whether the search term is an exact match. Exact matches and higher use frequency are both weighted highest. Words may have multiple definitions so going off of the first definition helps sorting as well. 
 
 | XML Tag      | Meaning              |
 | ------------ | -------------------- |
