@@ -14,7 +14,7 @@ This project currently parses dictionary entries from a single XML file. This is
 
 ### Workflow / How this works
 **Parsing the XML file:** 
-To parse the xml file we need to grab the contents of each `<entry>`. Each `<entry>` has tags which represent kanji, kana, etc. (`<entry>somecontent</entry>`). Inside the entry I parse `entry_sequence_id`, `kanji`, `use_frequency`, `english_meaning`, and `part_of_speech`. From the dictionary form of a verb, I generate conjugations — together these build our `JpToEnglishWord`.
+To parse the xml file we need to grab the contents of each `<entry>`. Each `<entry>` has tags which represent kanji, kana, etc. (`<entry>somecontent</entry>`). Inside the entry I parse `entry_sequence_id`, `kanji`, `use_frequency`, `english_meaning`, and `part_of_speech`. From the dictionary form of a verb, I generate conjugations together to build our `JpToEnglishWord`.
 
 `use_frequency` and `part_of_speech` are mapped to their own respective types to easily build off of them rather than have just a string. `UseFrequency` helps me sort relevant search results. `PartOfSpeech` lets me identify its part of speech, and if it is a verb, tell what kind of conjugations are needed.
 
