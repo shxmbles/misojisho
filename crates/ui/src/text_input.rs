@@ -4,6 +4,7 @@ use gpui::*;
 
 use super::traits::styled_ext::StyledExt;
 
+// The actions we will use with KeyBindings
 actions!(
     text_input,
     [
@@ -24,18 +25,42 @@ actions!(
     ]
 );
 
+/// A single-line, GPUI-native text input field with full IME support
+/// (Japanese/CJK composition), mouse-driven selection, standard keyboard
+/// shortcuts, and undo.
+///
+/// Construct with [`TextInput::new`], optionally chaining
+/// [`TextInput::on_submit`] to react to Enter:
+///
+/// ```
+/// cx.new(|cx| {
+///     TextInput::new("Search...", cx).on_submit(|query, window, cx| {
+///         // ...
+///     })
+/// })
+/// ```
 pub struct TextInput {
     content: SharedString,
     placeholder: SharedString,
+
+    // Either where the curosr is or what we have highlighted
     selected_range: Range<usize>,
     selection_reversed: bool,
     is_selecting: bool,
+
+    // Only relevant during IME if japanese characters are still in a draft we underline them
     marked_range: Option<Range<usize>>,
     focus_handle: FocusHandle,
-    on_submit: Option<Rc<dyn Fn(&SharedString, &mut Window, &mut Context<Self>)>>,
+    on_submit: Option<Rc<dyn Fn(&SharedString, &mut Window, &mut Context<Self>)>>, //?
+
+    // The text we recently deleted (the whole word rather than just 'h', 'e' 'y')
     undo_stack: Vec<(SharedString, Range<usize>)>,
     last_edit_end: Option<usize>,
     last_edit_was_insertion: Option<bool>,
+
+    // For mouse clicks + drags
+    // and IME when the Kanji pops up:
+    // To position it in the right place
     last_layout: Option<ShapedLine>,
     last_bounds: Option<Bounds<Pixels>>,
 }
@@ -68,6 +93,8 @@ impl TextInput {
         self
     }
 
+    /// The cursor positioning. If the selection is reversed then the range is at the start.
+    /// If not it is at the end.
     fn cursor_offset(&self) -> usize {
         if self.selection_reversed {
             self.selected_range.start
@@ -76,6 +103,7 @@ impl TextInput {
         }
     }
 
+    /// Where the cursor moves to. Clears any selection.
     fn move_to(&mut self, offset: usize, cx: &mut Context<Self>) {
         self.selected_range = offset..offset;
         self.selection_reversed = false;
@@ -84,6 +112,8 @@ impl TextInput {
         cx.notify();
     }
 
+    /// Moves just the selection's head (not the anchor), so it grows or
+    /// shrinks. Flips direction if dragged past the anchor.
     fn select_to(&mut self, offset: usize, cx: &mut Context<Self>) {
         if self.selection_reversed {
             self.selected_range.start = offset;
@@ -99,6 +129,9 @@ impl TextInput {
         cx.notify();
     }
 
+    /// Turns a mouse position into a text offset. Falls back to the start
+    /// or end if the click is outside the field, or 0 if nothing's been
+    /// painted yet.
     fn index_for_mouse_position(&self, position: gpui::Point<Pixels>) -> usize {
         if self.content.is_empty() {
             return 0;
@@ -116,6 +149,8 @@ impl TextInput {
         line.closest_index_for_x(position.x - bounds.left())
     }
 
+    /// When the mouse is pressed down. Focuses the field, starts a
+    /// selection, and moves the cursor to the click.
     fn on_mouse_down(
         &mut self,
         event: &MouseDownEvent,
@@ -128,6 +163,7 @@ impl TextInput {
         self.move_to(offset, cx);
     }
 
+    /// When the left mouse button is released, stops selecting.
     fn on_mouse_up(
         &mut self,
         _event: &MouseUpEvent,
@@ -137,6 +173,7 @@ impl TextInput {
         self.is_selecting = false;
     }
 
+    /// Clicking outside the text input unfocuses it.
     fn on_click_outside(
         &mut self,
         _event: &MouseDownEvent,
@@ -146,6 +183,7 @@ impl TextInput {
         window.blur();
     }
 
+    /// While dragging, updates the selection to follow the mouse.
     fn on_mouse_move(
         &mut self,
         event: &MouseMoveEvent,
@@ -163,7 +201,7 @@ impl TextInput {
     // internally, which is UTF-8. These convert between the two.
     //
     // Free functions taking an explicit `text: &str`, not just methods on
-    // `self.content` — because new_selected_range (in
+    // `self.content` because new_selected_range (in
     // replace_and_mark_text_in_range) is relative to new_text specifically,
     // a different string than self.content.
     fn offset_to_utf16(text: &str, offset: usize) -> usize {
@@ -224,8 +262,16 @@ impl TextInput {
             .unwrap_or(self.content.len())
     }
 
+    // Keyboard shortcuts
+    // "secondary" resolves to cmd on macOS, ctrl on Windows/Linux
+
     fn left(&mut self, _: &Left, _window: &mut Window, cx: &mut Context<Self>) {
         let cursor = self.previous_boundary(self.cursor_offset());
+        self.move_to(cursor, cx);
+    }
+
+    fn right(&mut self, _: &Right, _window: &mut Window, cx: &mut Context<Self>) {
+        let cursor = self.next_boundary(self.cursor_offset());
         self.move_to(cursor, cx);
     }
 
@@ -255,11 +301,6 @@ impl TextInput {
     ) {
         let cursor = self.cursor_offset();
         self.replace_text_in_range(Some(0..cursor), "", window, cx);
-    }
-
-    fn right(&mut self, _: &Right, _window: &mut Window, cx: &mut Context<Self>) {
-        let cursor = self.next_boundary(self.cursor_offset());
-        self.move_to(cursor, cx);
     }
 
     fn secondary_left(&mut self, _: &SecondaryLeft, _window: &mut Window, cx: &mut Context<Self>) {
@@ -329,6 +370,8 @@ impl TextInput {
 }
 
 impl EntityInputHandler for TextInput {
+    /// What text is in this range? Reports back the exact range it used,
+    /// since the OS's range may need adjusting to a char boundary.
     fn text_for_range(
         &mut self,
         range_utf16: Range<usize>,
@@ -341,6 +384,7 @@ impl EntityInputHandler for TextInput {
         Some(self.content[range].to_string())
     }
 
+    /// Selected text range in UTF-16
     fn selected_text_range(
         &mut self,
         _ignore_disabled_input: bool,
@@ -353,6 +397,7 @@ impl EntityInputHandler for TextInput {
         })
     }
 
+    /// Is there an IME composition in progress right now, and where.
     fn marked_text_range(
         &self,
         _window: &mut Window,
@@ -361,10 +406,15 @@ impl EntityInputHandler for TextInput {
         self.marked_range.as_ref().map(|r| self.range_to_utf16(r))
     }
 
+    /// Composition finished. Clears the marked range.
     fn unmark_text(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {
         self.marked_range = None;
     }
 
+    /// Replaces the text in selected range
+    /// Places cursor after last edit
+    /// Checks if last edit was insertion.
+    /// Marked range to nil
     fn replace_text_in_range(
         &mut self,
         range_utf16: Option<Range<usize>>,
@@ -399,6 +449,8 @@ impl EntityInputHandler for TextInput {
         cx.notify();
     }
 
+    /// Updates the underlined IME preview text while composing.
+    /// new_selected_range is relative to new_text, not self.content.
     fn replace_and_mark_text_in_range(
         &mut self,
         range: Option<Range<usize>>,
@@ -438,6 +490,8 @@ impl EntityInputHandler for TextInput {
         cx.notify();
     }
 
+    /// Where does this range sit on screen. Used to position the IME
+    /// candidate popup right under the text being composed.
     fn bounds_for_range(
         &mut self,
         range_utf16: Range<usize>,
@@ -453,6 +507,8 @@ impl EntityInputHandler for TextInput {
         ))
     }
 
+    /// What character is at this screen position. Converts the answer
+    /// back to UTF-16 before returning it.
     fn character_index_for_point(
         &mut self,
         point: gpui::Point<Pixels>,
