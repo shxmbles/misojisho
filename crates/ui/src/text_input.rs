@@ -2,8 +2,6 @@ use std::{ops::Range, rc::Rc};
 
 use gpui::*;
 
-use super::traits::styled_ext::StyledExt;
-
 // The actions we will use with KeyBindings
 actions!(
     text_input,
@@ -32,7 +30,7 @@ actions!(
 /// Construct with [`TextInput::new`], optionally chaining
 /// [`TextInput::on_submit`] to react to Enter:
 ///
-/// ```
+/// ```ignore
 /// cx.new(|cx| {
 ///     TextInput::new("Search...", cx).on_submit(|query, window, cx| {
 ///         // ...
@@ -733,37 +731,35 @@ impl Element for TextElement {
 
 impl Render for TextInput {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        div().v_flex().size_full().centered().child(
-            div()
-                .key_context("TextInput")
-                .track_focus(&self.focus_handle(cx))
-                .cursor(CursorStyle::IBeam)
-                .on_action(cx.listener(Self::backspace))
-                .on_action(cx.listener(Self::left))
-                .on_action(cx.listener(Self::right))
-                .on_action(cx.listener(Self::secondary_left))
-                .on_action(cx.listener(Self::secondary_shift_left))
-                .on_action(cx.listener(Self::secondary_shift_right))
-                .on_action(cx.listener(Self::secondary_backspace))
-                .on_action(cx.listener(Self::secondary_right))
-                .on_action(cx.listener(Self::select_all))
-                .on_action(cx.listener(Self::copy_text))
-                .on_action(cx.listener(Self::esc))
-                .on_action(cx.listener(Self::undo))
-                .on_action(cx.listener(Self::enter))
-                .on_action(cx.listener(Self::cut))
-                .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
-                .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
-                .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
-                .on_mouse_down_out(cx.listener(Self::on_click_outside))
-                .on_mouse_move(cx.listener(Self::on_mouse_move))
-                .w(px(300.))
-                .p_2()
-                .rounded(px(8.))
-                .bg(rgb(0xffffff))
-                .text_color(rgb(0x000000))
-                .child(TextElement { input: cx.entity() }),
-        )
+        div()
+            .key_context("TextInput")
+            .track_focus(&self.focus_handle(cx))
+            .cursor(CursorStyle::IBeam)
+            .on_action(cx.listener(Self::backspace))
+            .on_action(cx.listener(Self::left))
+            .on_action(cx.listener(Self::right))
+            .on_action(cx.listener(Self::secondary_left))
+            .on_action(cx.listener(Self::secondary_shift_left))
+            .on_action(cx.listener(Self::secondary_shift_right))
+            .on_action(cx.listener(Self::secondary_backspace))
+            .on_action(cx.listener(Self::secondary_right))
+            .on_action(cx.listener(Self::select_all))
+            .on_action(cx.listener(Self::copy_text))
+            .on_action(cx.listener(Self::esc))
+            .on_action(cx.listener(Self::undo))
+            .on_action(cx.listener(Self::enter))
+            .on_action(cx.listener(Self::cut))
+            .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
+            .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
+            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
+            .on_mouse_down_out(cx.listener(Self::on_click_outside))
+            .on_mouse_move(cx.listener(Self::on_mouse_move))
+            .w(px(300.))
+            .p_2()
+            .rounded(px(8.))
+            .bg(rgb(0xffffff))
+            .text_color(rgb(0x000000))
+            .child(TextElement { input: cx.entity() })
     }
 }
 

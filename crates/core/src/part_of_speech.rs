@@ -42,7 +42,7 @@ impl PartOfSpeech {
     /// Takes a <pos> tag value and converts to a `PartOfSpeech` Object
     /// # Examples
     /// ```
-    /// use misojisho::part_of_speech::PartOfSpeech;
+    /// use misojisho_core::part_of_speech::PartOfSpeech;
     ///
     /// let actual = PartOfSpeech::from_pos_code("&n");
     /// assert_eq!(actual, Some(PartOfSpeech::Noun));
@@ -81,6 +81,17 @@ impl std::fmt::Display for VerbType {
         };
 
         write!(f, "{s}")
+    }
+}
+
+impl std::fmt::Display for PartOfSpeech {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Verb(verb_type) => write!(f, "{verb_type}"),
+            Self::Noun => write!(f, "Noun"),
+            Self::Adjective => write!(f, "Adjective"),
+            Self::Adverbs => write!(f, "Adverb"),
+        }
     }
 }
 
