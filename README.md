@@ -54,4 +54,4 @@ Example entry below:
 ```
 
 ### Plans 
-I plan to make this a Tauri project.
+I plan to make this a gpui project.
