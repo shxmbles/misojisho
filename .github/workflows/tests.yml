@@ -13,6 +13,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+      - name: Install Linux dependencies
+        run: ./script/linux
       - name: Build
         run: cargo build --workspace --verbose
       - name: Run tests
