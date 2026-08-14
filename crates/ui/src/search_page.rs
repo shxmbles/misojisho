@@ -48,18 +48,23 @@ impl Render for SearchPage {
         div()
             .v_flex()
             .size_full()
-            .bg(rgb(0x91adc2))
+            .bg(rgb(0xFCFCFD))
             // Reserved space for the (now-transparent) native titlebar's
             // traffic-light buttons. Empty on purpose, not padding on
             // real content.
-            .child(div().h(title_bar_height).w_full().bg(rgb(0xff8484)))
+            .child(div().h(title_bar_height).w_full().bg(rgb(0xB9BBC6)))
             .child(
                 div()
                     .v_flex()
                     .flex_1()
                     .gap_2()
                     .p_4()
-                    .child(self.search_input.clone())
+                    .child(
+                        div()
+                            .child(self.search_input.clone())
+                            .border_2()
+                            .border_color(rgb(0xD9D9E0)),
+                    )
                     .child(self.results_list.clone()),
             )
     }

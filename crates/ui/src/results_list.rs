@@ -27,7 +27,7 @@ impl PosTag {
                 VerbType::Godan => rgb(0xB4A0E5),
                 VerbType::Irregular => rgb(0xcaffd0),
                 VerbType::Transitive => rgb(0xc9e4e7),
-                VerbType::Intransitive => rgb(0x1e1014),
+                VerbType::Intransitive => rgb(0x80838D),
             },
             PartOfSpeech::Noun => rgb(0x6B9AC4),
             PartOfSpeech::Adjective => rgb(0x84A98C),
@@ -95,53 +95,58 @@ impl Render for ResultsList {
             move |visible_range, _window, _cx| {
                 visible_range
                     .map(|i| {
-                        div()
-                            .flex_1()
-                            .py_4()
-                            .child(
-                                div()
-                                    .h_flex()
-                                    .child(
-                                        div()
-                                            .v_flex()
-                                            .flex_1()
-                                            .max_w(px(400.))
-                                            .child(
+                        div().flex_1().py_4().child(
+                            div()
+                                .h_flex()
+                                .child(
+                                    div()
+                                        .v_flex()
+                                        .flex_1()
+                                        .max_w(px(400.))
+                                        .child(
+                                            div()
+                                                .child(results[i].kana_reading.join(" | "))
+                                                .text_ellipsis()
+                                                .text_color(rgb(0x646464)),
+                                        )
+                                        .child(
+                                            div()
+                                                .child(results[i].word.clone())
+                                                .text_3xl()
+                                                .text_color(rgb(0x1C2024)),
+                                        )
+                                        .child(div().child(div().h_flex().gap_1().children(
+                                            results[i].part_of_speech.iter().map(|tag| {
                                                 div()
-                                                    .child(results[i].kana_reading.join(" | "))
-                                                    .text_ellipsis(),
-                                            )
-                                            .child(div().child(results[i].word.clone()).text_3xl())
-                                            .child(div().child(div().h_flex().gap_1().children(
-                                                results[i].part_of_speech.iter().map(|tag| {
-                                                    div()
-                                                        .child(tag.label.clone())
-                                                        .px_2()
-                                                        .py_0p5()
-                                                        .rounded_full()
-                                                        .bg(tag.bg_color)
-                                                }),
-                                            ))),
-                                    )
-                                    .child(
-                                        div()
-                                            .v_flex()
-                                            .flex_1()
-                                            .max_w(px(600.))
-                                            .child(
-                                                div()
-                                                    .child(results[i].primary_meaning.clone())
-                                                    .text_lg()
-                                                    .font_weight(FontWeight::BOLD),
-                                            )
-                                            .child(
-                                                div()
-                                                    .child(results[i].meanings.join(" "))
-                                                    .text_ellipsis(),
-                                            ),
-                                    ),
-                            )
-                            .text_color(rgb(0xFFFFFF))
+                                                    .child(tag.label.clone())
+                                                    .px_2()
+                                                    .py_0p5()
+                                                    .rounded_full()
+                                                    .bg(tag.bg_color)
+                                                    .text_color(rgb(0x1C2024))
+                                            }),
+                                        ))),
+                                )
+                                .child(
+                                    div()
+                                        .v_flex()
+                                        .flex_1()
+                                        .max_w(px(600.))
+                                        .child(
+                                            div()
+                                                .child(results[i].primary_meaning.clone())
+                                                .text_lg()
+                                                .font_weight(FontWeight::BOLD)
+                                                .text_color(rgb(0x1C2024)),
+                                        )
+                                        .child(
+                                            div()
+                                                .child(results[i].meanings.join(" "))
+                                                .text_ellipsis()
+                                                .text_color(rgb(0x60646C)),
+                                        ),
+                                ),
+                        )
                     })
                     .collect()
             },
