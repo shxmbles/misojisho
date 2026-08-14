@@ -1,0 +1,8 @@
+[package]
+name = "misojisho-ui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+gpui = { version = "*", features = ["font-kit", "test-support"] }
+misojisho-core = { path = "../core" }

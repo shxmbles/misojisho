@@ -1,10 +1,12 @@
+[workspace]
+resolver = "2"
+members = ["crates/core", "crates/ui"]
+
 [package]
 name = "misojisho"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-thiserror = "2.0.18"
-
-[dev-dependencies]
-tempfile = "3.27.0"
+misojisho-core = { path = "crates/core" }
+misojisho-ui = { path = "crates/ui" }
