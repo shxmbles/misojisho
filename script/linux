@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+#
+# Installs the native dev libraries gpui needs to link on Linux (X11/Wayland
+# clipboard, input, and font handling). Used by .github/workflows/unit-tests.yml
+# and safe to run locally on an apt-based Linux dev machine.
+
+set -euo pipefail
+
+if [ "$(id -u)" -eq 0 ]; then
+  maysudo=''
+else
+  maysudo="$(command -v sudo || true)"
+fi
+
+apt=$(command -v apt-get || true)
+if [[ -z $apt ]]; then
+  echo "script/linux only supports apt-based distros right now (ubuntu-latest in CI)." >&2
+  exit 1
+fi
+
+deps=(
+  libxcb1-dev
+  libx11-xcb-dev
+  libxkbcommon-dev
+  libxkbcommon-x11-dev
+  libwayland-dev
+  libssl-dev
+  libasound2-dev
+  libfontconfig1-dev
+)
+
+$maysudo "$apt" update
+$maysudo "$apt" install -y "${deps[@]}"
