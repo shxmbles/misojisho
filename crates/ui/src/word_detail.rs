@@ -59,7 +59,7 @@ impl Render for WordDetailView {
                         });
                     }),
             )
-            .child(div().size_full().child(self.word_detail.clone()))
+            .child(div().size_full().flex_1().child(self.word_detail.clone()))
             .bg(rgb(0xFCFCFD))
     }
 }
