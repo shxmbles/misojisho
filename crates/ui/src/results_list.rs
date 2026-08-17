@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use gpui::*;
 use misojisho_core::jp_to_english_dictionary::JpToEnglishWord;
 use misojisho_core::part_of_speech::{PartOfSpeech, VerbType};
@@ -5,18 +7,18 @@ use misojisho_core::part_of_speech::{PartOfSpeech, VerbType};
 use crate::traits::styled_ext::StyledExt;
 
 #[derive(Clone)]
-pub(crate) struct ResultDisplay {
-    word: String,
-    kana_reading: Vec<String>,
-    primary_meaning: String,
-    meanings: Vec<String>,
-    part_of_speech: Vec<PosTag>,
+pub(crate) struct WordEntry {
+    pub word: String,
+    pub kana_reading: Vec<String>,
+    pub primary_meaning: String,
+    pub meanings: Vec<String>,
+    pub part_of_speech: Vec<PosTag>,
 }
 
 #[derive(Clone)]
 pub(crate) struct PosTag {
-    label: String,
-    bg_color: Rgba,
+    pub label: String,
+    pub bg_color: Rgba,
 }
 
 impl PosTag {
@@ -41,7 +43,7 @@ impl PosTag {
     }
 }
 
-impl ResultDisplay {
+impl WordEntry {
     pub(crate) fn from_word(word: &JpToEnglishWord) -> Self {
         let display_word = word
             .kanji
@@ -71,23 +73,36 @@ impl ResultDisplay {
 }
 
 pub struct ResultsList {
-    results: Vec<ResultDisplay>,
+    results: Vec<WordEntry>,
+    on_result_click: Option<Rc<dyn Fn(&WordEntry, &mut Window, &mut Context<Self>)>>,
 }
 
 impl ResultsList {
     pub fn new(_cx: &mut Context<Self>) -> Self {
-        Self { results: vec![] }
+        Self {
+            results: vec![],
+            on_result_click: None,
+        }
     }
 
-    pub(crate) fn set_results(&mut self, results: Vec<ResultDisplay>, cx: &mut Context<Self>) {
+    pub(crate) fn set_results(&mut self, results: Vec<WordEntry>, cx: &mut Context<Self>) {
         self.results = results;
         cx.notify();
+    }
+
+    pub fn on_result_click(
+        mut self,
+        callback: impl Fn(&WordEntry, &mut Window, &mut Context<Self>) + 'static,
+    ) -> Self {
+        self.on_result_click = Some(Rc::new(callback));
+        self
     }
 }
 
 impl Render for ResultsList {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let results = self.results.clone();
+        let entity = cx.entity();
 
         uniform_list(
             "results",
@@ -95,58 +110,74 @@ impl Render for ResultsList {
             move |visible_range, _window, _cx| {
                 visible_range
                     .map(|i| {
-                        div().flex_1().py_4().child(
-                            div()
-                                .h_flex()
-                                .child(
-                                    div()
-                                        .v_flex()
-                                        .flex_1()
-                                        .max_w(px(400.))
-                                        .child(
-                                            div()
-                                                .child(results[i].kana_reading.join(" | "))
-                                                .text_ellipsis()
-                                                .text_color(rgb(0x646464)),
-                                        )
-                                        .child(
-                                            div()
-                                                .child(results[i].word.clone())
-                                                .text_3xl()
-                                                .text_color(rgb(0x1C2024)),
-                                        )
-                                        .child(div().child(div().h_flex().gap_1().children(
-                                            results[i].part_of_speech.iter().map(|tag| {
+                        // Context for all the rows
+                        let entity = entity.clone();
+                        let word_entry = results[i].clone();
+                        div()
+                            .flex_1()
+                            .py_4()
+                            .child(
+                                div()
+                                    .h_flex()
+                                    .child(
+                                        div()
+                                            .v_flex()
+                                            .flex_1()
+                                            .max_w(px(400.))
+                                            .child(
                                                 div()
-                                                    .child(tag.label.clone())
-                                                    .px_2()
-                                                    .py_0p5()
-                                                    .rounded_full()
-                                                    .bg(tag.bg_color)
-                                                    .text_color(rgb(0x1C2024))
-                                            }),
-                                        ))),
-                                )
-                                .child(
-                                    div()
-                                        .v_flex()
-                                        .flex_1()
-                                        .max_w(px(600.))
-                                        .child(
-                                            div()
-                                                .child(results[i].primary_meaning.clone())
-                                                .text_lg()
-                                                .font_weight(FontWeight::BOLD)
-                                                .text_color(rgb(0x1C2024)),
-                                        )
-                                        .child(
-                                            div()
-                                                .child(results[i].meanings.join(" "))
-                                                .text_ellipsis()
-                                                .text_color(rgb(0x60646C)),
-                                        ),
-                                ),
-                        )
+                                                    .child(results[i].kana_reading.join(" | "))
+                                                    .text_ellipsis()
+                                                    .text_color(rgb(0x646464)),
+                                            )
+                                            .child(
+                                                div()
+                                                    .child(results[i].word.clone())
+                                                    .text_3xl()
+                                                    .text_color(rgb(0x1C2024)),
+                                            )
+                                            .child(div().child(div().h_flex().gap_1().children(
+                                                results[i].part_of_speech.iter().map(|tag| {
+                                                    div()
+                                                        .child(tag.label.clone())
+                                                        .px_2()
+                                                        .py_0p5()
+                                                        .rounded_full()
+                                                        .bg(tag.bg_color)
+                                                        .text_color(rgb(0x1C2024))
+                                                }),
+                                            ))),
+                                    )
+                                    .child(
+                                        div()
+                                            .v_flex()
+                                            .flex_1()
+                                            .max_w(px(600.))
+                                            .child(
+                                                div()
+                                                    .child(results[i].primary_meaning.clone())
+                                                    .text_lg()
+                                                    .font_weight(FontWeight::BOLD)
+                                                    .text_color(rgb(0x1C2024)),
+                                            )
+                                            .child(
+                                                div()
+                                                    .child(results[i].meanings.join(" "))
+                                                    .text_ellipsis()
+                                                    .text_color(rgb(0x60646C)),
+                                            ),
+                                    ),
+                            )
+                            .id("result")
+                            .on_click(move |_event, window, cx| {
+                                entity.update(cx, |result_list, cx| {
+                                    if let Some(on_result_click) =
+                                        result_list.on_result_click.clone()
+                                    {
+                                        on_result_click(&word_entry, window, cx)
+                                    }
+                                });
+                            })
                     })
                     .collect()
             },

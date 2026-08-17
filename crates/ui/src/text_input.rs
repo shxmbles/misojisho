@@ -49,7 +49,7 @@ pub struct TextInput {
     // Only relevant during IME if japanese characters are still in a draft we underline them
     marked_range: Option<Range<usize>>,
     focus_handle: FocusHandle,
-    on_submit: Option<Rc<dyn Fn(&SharedString, &mut Window, &mut Context<Self>)>>, //?
+    on_submit: Option<Rc<dyn Fn(&SharedString, &mut Window, &mut Context<Self>)>>,
 
     // The text we recently deleted (the whole word rather than just 'h', 'e' 'y')
     undo_stack: Vec<(SharedString, Range<usize>)>,
