@@ -74,6 +74,7 @@ impl WordEntry {
 
 pub struct ResultsList {
     results: Vec<WordEntry>,
+    scroll_handle: UniformListScrollHandle,
     on_result_click: Option<Rc<dyn Fn(&WordEntry, &mut Window, &mut Context<Self>)>>,
 }
 
@@ -81,6 +82,7 @@ impl ResultsList {
     pub fn new(_cx: &mut Context<Self>) -> Self {
         Self {
             results: vec![],
+            scroll_handle: UniformListScrollHandle::default(),
             on_result_click: None,
         }
     }
@@ -182,6 +184,7 @@ impl Render for ResultsList {
                     .collect()
             },
         )
+        .track_scroll(self.scroll_handle.clone())
         .size_full()
     }
 }
