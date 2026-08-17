@@ -18,11 +18,22 @@ impl AppRoot {
         let app_root = cx.entity();
 
         let search_results = cx.new(|cx| {
-            SearchResultsView::new(dictionary, cx, move |word_entry, _window, cx| {
-                let word_entry = word_entry.clone();
-                let word_detail = cx.new(|cx| WordDetailView::new(word_entry, cx));
+            SearchResultsView::new(dictionary, cx, move |word_detail_context, _window, cx| {
+                let props = word_detail_context.clone();
+                let app_root_for_back = app_root.clone();
+                let app_root_for_forward = app_root.clone();
+                let word_detail = cx.new(|cx| {
+                    WordDetailView::new(props.clone(), cx).on_back_button_pressed(
+                        move |_context, _window, cx| {
+                            app_root_for_back.update(cx, |app_root, cx| {
+                                app_root.current = Screen::SearchResults;
+                                cx.notify()
+                            })
+                        },
+                    )
+                });
 
-                app_root.update(cx, |app_root, cx| {
+                app_root_for_forward.update(cx, |app_root, cx| {
                     app_root.current = Screen::WordDetail(word_detail);
                     cx.notify();
                 })

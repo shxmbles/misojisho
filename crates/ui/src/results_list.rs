@@ -168,7 +168,7 @@ impl Render for ResultsList {
                                             ),
                                     ),
                             )
-                            .id("result")
+                            .id(("result", i))
                             .on_click(move |_event, window, cx| {
                                 entity.update(cx, |result_list, cx| {
                                     if let Some(on_result_click) =

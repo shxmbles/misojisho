@@ -1,43 +1,64 @@
 use std::rc::Rc;
 
 use gpui::{
-    AppContext, Context, Entity, IntoElement, ParentElement, Render, Styled, Window, div, rgb,
+    AppContext, Context, Entity, InteractiveElement, IntoElement, ParentElement, Render,
+    StatefulInteractiveElement, Styled, Window, div, rgb,
 };
 
 use crate::{
-    results_list::{PosTag, ResultsList, WordEntry},
+    results_list::{PosTag, WordEntry},
     traits::styled_ext::StyledExt,
     utils::title_bar_height,
 };
 
 pub struct WordDetailView {
+    word_entry: WordEntry,
     word_detail: Entity<WordDetail>,
-    back_button_pressed: Option<Rc<dyn Fn(ResultsList, &mut Window, &mut Context<Self>)>>,
+    on_back_button_pressed: Option<Rc<dyn Fn(WordEntry, &mut Window, &mut Context<Self>)>>,
 }
 
 impl WordDetailView {
     pub fn new(word_entry: WordEntry, cx: &mut Context<Self>) -> Self {
-        Self {
-            word_detail: cx.new(|cx| WordDetail::new(word_entry, cx)),
-            back_button_pressed: None,
-        }
+        return Self {
+            word_detail: cx.new(|cx| WordDetail::new(word_entry.clone(), cx)),
+            word_entry,
+            on_back_button_pressed: None,
+        };
     }
 
-    pub fn back_button_pressed(mut self) {
-        // self.back_button_pressed = Some(Rc::new(callback))
-        println!("Hit back")
+    pub fn on_back_button_pressed(
+        mut self,
+        callback: impl Fn(WordEntry, &mut Window, &mut Context<Self>) + 'static,
+    ) -> Self {
+        self.on_back_button_pressed = Some(Rc::new(callback));
+        self
     }
 }
 
 /// Wrapper for WordDetail
 impl Render for WordDetailView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let entity = cx.entity();
+        let word_entry = self.word_entry.clone();
         div()
             .size_full()
             .v_flex()
             .child(div().h(title_bar_height(window)).w_full().bg(rgb(0xB9BBC6)))
             .text_color(rgb(0xfffff))
-            .child(div().child("back").text_color(rgb(0xfffff)).px_4())
+            .child(
+                div()
+                    .id("back-button")
+                    .child("back")
+                    .text_color(rgb(0xfffff))
+                    .px_4()
+                    .on_click(move |_event, window, cx| {
+                        entity.update(cx, |view, cx| {
+                            if let Some(on_back) = view.on_back_button_pressed.clone() {
+                                on_back(word_entry.clone(), window, cx);
+                            }
+                        });
+                    }),
+            )
             .child(div().size_full().child(self.word_detail.clone()))
             .bg(rgb(0xFCFCFD))
     }
