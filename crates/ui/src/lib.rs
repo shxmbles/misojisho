@@ -1,12 +1,15 @@
 use gpui::*;
 use misojisho_core::jp_to_english_dictionary::JpToEnglishDictionary;
 
+mod app_root;
 mod results_list;
 mod search_page;
 mod text_input;
 mod traits;
+mod utils;
+mod word_detail;
 
-use search_page::SearchPage;
+use crate::app_root::AppRoot;
 
 pub fn run(dictionary: JpToEnglishDictionary) {
     Application::new().run(move |cx: &mut App| {
@@ -21,9 +24,8 @@ pub fn run(dictionary: JpToEnglishDictionary) {
             ..Default::default()
         };
 
-        let window = cx.open_window(window_options, move |
-            _, cx| {
-            cx.new(|cx| SearchPage::new(dictionary, cx))
+        let window = cx.open_window(window_options, move |_, cx| {
+            cx.new(|cx| AppRoot::new(dictionary, cx))
         });
 
         if let Err(e) = window {

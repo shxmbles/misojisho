@@ -4,7 +4,7 @@ use crate::{
 
 const NO_PRIORITY: u8 = u8::MAX;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default)]
 pub struct JpToEnglishWord {
     /// JMdict entry sequence number (`<ent_seq>`) which is unique per entry.
     pub id: String,
