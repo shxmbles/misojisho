@@ -4,8 +4,8 @@ use gpui::{
 use misojisho_core::jp_to_english_dictionary::JpToEnglishDictionary;
 
 use crate::{
-    search_page::SearchResultsView, traits::styled_ext::StyledExt, utils::title_bar_height,
-    word_detail::WordDetailView,
+    results_list::WordEntry, search_page::SearchResultsView, traits::styled_ext::StyledExt,
+    utils::title_bar_height, word_detail::WordDetailView,
 };
 
 pub struct AppRoot {
@@ -18,25 +18,11 @@ impl AppRoot {
         let app_root = cx.entity();
 
         let search_results = cx.new(|cx| {
-            SearchResultsView::new(dictionary, cx, move |word_detail_context, _window, cx| {
-                let props = word_detail_context.clone();
-                let app_root_for_back = app_root.clone();
-                let app_root_for_forward = app_root.clone();
-                let word_detail = cx.new(|cx| {
-                    WordDetailView::new(props.clone(), cx).on_back_button_pressed(
-                        move |_context, _window, cx| {
-                            app_root_for_back.update(cx, |app_root, cx| {
-                                app_root.current = Screen::SearchResults;
-                                cx.notify()
-                            })
-                        },
-                    )
+            SearchResultsView::new(dictionary, cx, move |word_entry, _window, cx| {
+                let word_entry = word_entry.clone();
+                app_root.update(cx, |app_root, cx| {
+                    app_root.handle_result_click(word_entry, cx);
                 });
-
-                app_root_for_forward.update(cx, |app_root, cx| {
-                    app_root.current = Screen::WordDetail(word_detail);
-                    cx.notify();
-                })
             })
         });
 
@@ -44,6 +30,27 @@ impl AppRoot {
             search_results: search_results,
             current: Screen::SearchResults,
         }
+    }
+
+    fn handle_result_click(&mut self, context: WordEntry, cx: &mut Context<Self>) {
+        let app_root = cx.entity();
+        let word_detail = cx.new(|cx| {
+            WordDetailView::new(context.clone(), cx).on_back_button_pressed(
+                move |_context, _window, cx| {
+                    app_root.update(cx, |app_root, cx| {
+                        app_root.handle_back_button_click(cx);
+                    })
+                },
+            )
+        });
+
+        self.current = Screen::WordDetail(word_detail);
+        cx.notify();
+    }
+
+    fn handle_back_button_click(&mut self, cx: &mut Context<Self>) {
+        self.current = Screen::SearchResults;
+        cx.notify();
     }
 }
 
@@ -81,6 +88,7 @@ mod tests {
     use misojisho_core::part_of_speech::{PartOfSpeech, VerbType};
 
     use crate::app_root::{AppRoot, Screen};
+    use crate::results_list::WordEntry;
 
     fn dictionary() -> JpToEnglishDictionary {
         JpToEnglishDictionary {
@@ -119,6 +127,48 @@ mod tests {
     #[gpui::test]
     fn should_show_results_screen(cx: &mut TestAppContext) {
         let (app_root, cx) = cx.add_window_view(|_window, cx| AppRoot::new(dictionary(), cx));
+
+        app_root.read_with(cx, |view, _cx| {
+            assert_eq!(Screen::SearchResults, view.current);
+        });
+    }
+
+    fn word_entry() -> WordEntry {
+        WordEntry {
+            main_kanji: "眠い".to_string(),
+            kana_reading: vec!["ねむい".to_string()],
+            primary_meaning: "sleepy".to_string(),
+            meanings: vec!["drowsy".to_string()],
+            part_of_speech: vec![],
+        }
+    }
+
+    #[gpui::test]
+    fn should_show_word_detail_screen_when_result_clicked(cx: &mut TestAppContext) {
+        let (app_root, cx) = cx.add_window_view(|_window, cx| AppRoot::new(dictionary(), cx));
+
+        app_root.update(cx, |view, cx| {
+            view.handle_result_click(word_entry(), cx);
+        });
+
+        app_root.read_with(cx, |view, _cx| {
+            assert!(matches!(view.current, Screen::WordDetail(_)));
+        });
+    }
+
+    #[gpui::test]
+    fn should_show_results_screen_when_back_button_clicked(cx: &mut TestAppContext) {
+        let (app_root, cx) = cx.add_window_view(|_window, cx| AppRoot::new(dictionary(), cx));
+
+        // 1. Click into detail view
+        app_root.update(cx, |view, cx| {
+            view.handle_result_click(word_entry(), cx);
+        });
+
+        // 2. Click the back button
+        app_root.update(cx, |view, cx| {
+            view.handle_back_button_click(cx);
+        });
 
         app_root.read_with(cx, |view, _cx| {
             assert_eq!(Screen::SearchResults, view.current);
