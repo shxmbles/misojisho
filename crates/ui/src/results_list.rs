@@ -230,7 +230,8 @@ mod tests {
             verb_conjugations: None,
         };
 
-        let result = WordEntry::from_word(&word).expect("This should be Some");
+        let result =
+            WordEntry::from_word(&word).expect("word has a kanji, so this should be Some");
 
         assert_eq!("眠い", result.main_kanji);
         assert_eq!(vec!["ねむい"], result.kana_reading);
@@ -247,15 +248,15 @@ mod tests {
 
     #[test]
     fn should_parse_main_kanji_when_multiple() {
-        let word =
-            WordEntry::from_word(&word_with_multiple_variants()).expect("This should be some");
+        let word = WordEntry::from_word(&word_with_multiple_variants())
+            .expect("word has a kanji, so this should be Some");
         assert_eq!("行く", word.main_kanji)
     }
 
     #[test]
     fn should_parse_multiple_kana_readings() {
-        let word =
-            WordEntry::from_word(&word_with_multiple_variants()).expect("This should be some");
+        let word = WordEntry::from_word(&word_with_multiple_variants())
+            .expect("word has a kanji, so this should be Some");
         assert_eq!(
             vec!["いく".to_string(), "ゆく".to_string()],
             word.kana_reading
@@ -264,8 +265,8 @@ mod tests {
 
     #[test]
     fn should_parse_primary_english_meaning_when_multiple() {
-        let word =
-            WordEntry::from_word(&word_with_multiple_variants()).expect("This should be some");
+        let word = WordEntry::from_word(&word_with_multiple_variants())
+            .expect("word has a kanji, so this should be Some");
         assert_eq!("to go", word.primary_meaning)
     }
 
@@ -276,13 +277,13 @@ mod tests {
             kana_reading: vec!["ないものねだり".to_string()],
             ..Default::default()
         })
-        .expect("This should be some");
+        .expect("word has a kana reading, so this should be Some");
 
         assert_eq!("ないものねだり", word.main_kanji);
     }
 
     #[test]
-    fn should_be_exluded_from_list_when_kanji_and_kana_are_none() {
+    fn should_be_excluded_from_list_when_kanji_and_kana_are_none() {
         let word = WordEntry::from_word(&JpToEnglishWord {
             ..Default::default()
         });

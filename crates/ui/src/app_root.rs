@@ -27,7 +27,7 @@ impl AppRoot {
         });
 
         Self {
-            search_results: search_results,
+            search_results,
             current: Screen::SearchResults,
         }
     }
@@ -35,13 +35,11 @@ impl AppRoot {
     fn handle_result_click(&mut self, context: WordEntry, cx: &mut Context<Self>) {
         let app_root = cx.entity();
         let word_detail = cx.new(|cx| {
-            WordDetailView::new(context.clone(), cx).on_back_button_pressed(
-                move |_context, _window, cx| {
-                    app_root.update(cx, |app_root, cx| {
-                        app_root.handle_back_button_click(cx);
-                    })
-                },
-            )
+            WordDetailView::new(context, cx).on_back_button_pressed(move |_context, _window, cx| {
+                app_root.update(cx, |app_root, cx| {
+                    app_root.handle_back_button_click(cx);
+                })
+            })
         });
 
         self.current = Screen::WordDetail(word_detail);

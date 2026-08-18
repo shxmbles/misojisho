@@ -19,11 +19,11 @@ pub struct WordDetailView {
 
 impl WordDetailView {
     pub fn new(word_entry: WordEntry, cx: &mut Context<Self>) -> Self {
-        return Self {
+        Self {
             word_detail: cx.new(|cx| WordDetail::new(word_entry.clone(), cx)),
             word_entry,
             on_back_button_pressed: None,
-        };
+        }
     }
 
     pub fn on_back_button_pressed(
