@@ -68,7 +68,60 @@ impl Render for AppRoot {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum Screen {
     SearchResults,
     WordDetail(Entity<WordDetailView>),
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui::TestAppContext;
+    use misojisho_core::jp_to_english_dictionary::{JpToEnglishDictionary, JpToEnglishWord};
+    use misojisho_core::part_of_speech::{PartOfSpeech, VerbType};
+
+    use crate::app_root::{AppRoot, Screen};
+
+    fn dictionary() -> JpToEnglishDictionary {
+        JpToEnglishDictionary {
+            words: vec![
+                JpToEnglishWord {
+                    id: "1000".to_string(),
+                    kanji: Some(vec!["眠い".to_string()]),
+                    kana_reading: vec!["ねむい".to_string()],
+                    use_frequency: None,
+                    english_meaning: vec!["sleepy".to_string(), "drowsy".to_string()],
+                    part_of_speech: vec![PartOfSpeech::Adjective],
+                    verb_conjugations: None,
+                },
+                JpToEnglishWord {
+                    id: "1001".to_string(),
+                    kanji: Some(vec!["行く".to_string()]),
+                    kana_reading: vec!["いく".to_string()],
+                    use_frequency: None,
+                    english_meaning: vec!["to go".to_string()],
+                    part_of_speech: vec![PartOfSpeech::Verb(VerbType::Godan)],
+                    verb_conjugations: None,
+                },
+                JpToEnglishWord {
+                    id: "1002".to_string(),
+                    kanji: Some(vec!["猫".to_string()]),
+                    kana_reading: vec!["ねこ".to_string()],
+                    use_frequency: None,
+                    english_meaning: vec!["cat".to_string()],
+                    part_of_speech: vec![PartOfSpeech::Noun],
+                    verb_conjugations: None,
+                },
+            ],
+        }
+    }
+
+    #[gpui::test]
+    fn should_show_results_screen(cx: &mut TestAppContext) {
+        let (app_root, cx) = cx.add_window_view(|_window, cx| AppRoot::new(dictionary(), cx));
+
+        app_root.read_with(cx, |view, _cx| {
+            assert_eq!(Screen::SearchResults, view.current);
+        });
+    }
 }

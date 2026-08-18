@@ -76,7 +76,7 @@ pub struct WordDetail {
 impl WordDetail {
     pub fn new(word_entry: WordEntry, _cx: &mut Context<Self>) -> Self {
         Self {
-            main_kanji: word_entry.word,
+            main_kanji: word_entry.main_kanji,
             kana_reading: word_entry.kana_reading,
             primary_meaning: word_entry.primary_meaning,
             meanings: word_entry.meanings,
@@ -124,5 +124,120 @@ impl Render for WordDetail {
                     ),
             )
             .text_color(rgb(0xffffff))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::RefCell;
+
+    use gpui::TestAppContext;
+
+    use super::*;
+
+    #[gpui::test]
+    fn should_map_word_entry_to_word_detail(cx: &mut TestAppContext) {
+        let word_entry = WordEntry {
+            main_kanji: "根気".to_string(),
+            kana_reading: vec!["こんき".to_string()],
+            primary_meaning: "patience".to_string(),
+            meanings: vec!["perseverance".to_string()],
+            part_of_speech: vec![PosTag {
+                label: "Noun".to_string(),
+                bg_color: rgb(0xffffff),
+            }],
+        };
+
+        let (word_detail, cx) = cx.add_window_view(|_window, cx| WordDetail::new(word_entry, cx));
+
+        word_detail.read_with(cx, |word_detail, _cx| {
+            assert_eq!(word_detail.main_kanji, "根気");
+            assert_eq!(word_detail.kana_reading, vec!["こんき".to_string()]);
+            assert_eq!(word_detail.primary_meaning, "patience");
+            assert_eq!(word_detail.meanings, vec!["perseverance".to_string()]);
+            assert_eq!(word_detail.part_of_speech.len(), 1);
+            assert_eq!(word_detail.part_of_speech[0].label, "Noun");
+        });
+    }
+
+    #[gpui::test]
+    fn should_store_word_detail(cx: &mut TestAppContext) {
+        let word_entry = WordEntry {
+            main_kanji: "笑う".to_string(),
+            kana_reading: vec!["わらう".to_string()],
+            primary_meaning: "to laugh".to_string(),
+            meanings: vec!["to giggle".to_string()],
+            part_of_speech: vec![PosTag {
+                label: "Godan Verb".to_string(),
+                bg_color: rgb(0xffffff),
+            }],
+        };
+
+        let (word_detail, cx) =
+            cx.add_window_view(|_window, cx| WordDetailView::new(word_entry, cx));
+
+        word_detail.read_with(cx, |word_detail_view, _cx| {
+            assert_eq!(word_detail_view.word_entry.main_kanji, "笑う");
+            assert_eq!(
+                word_detail_view.word_entry.kana_reading,
+                vec!["わらう".to_string()]
+            );
+            assert_eq!(word_detail_view.word_entry.primary_meaning, "to laugh");
+            assert_eq!(
+                word_detail_view.word_entry.meanings,
+                vec!["to giggle".to_string()]
+            );
+            assert_eq!(word_detail_view.word_entry.part_of_speech.len(), 1);
+            assert_eq!(
+                word_detail_view.word_entry.part_of_speech[0].label,
+                "Godan Verb"
+            );
+        });
+    }
+
+    #[gpui::test]
+    fn should_navigate_back(cx: &mut TestAppContext) {
+        let word_entry = WordEntry {
+            main_kanji: "眠い".to_string(),
+            kana_reading: vec!["ねむい".to_string()],
+            primary_meaning: "sleepy".to_string(),
+            meanings: vec!["drowsy".to_string()],
+            part_of_speech: vec![PosTag {
+                label: "Adjective".to_string(),
+                bg_color: rgb(0xffffff),
+            }],
+        };
+
+        // Records whatever the callback is invoked with, so the test can
+        // assert on it after triggering the callback below.
+        let received: Rc<RefCell<Option<WordEntry>>> = Rc::new(RefCell::new(None));
+        let received_for_callback = received.clone();
+
+        let (word_detail, cx) = cx.add_window_view(|_window, cx| {
+            WordDetailView::new(word_entry, cx).on_back_button_pressed(
+                move |word_entry, _window, _cx| {
+                    *received_for_callback.borrow_mut() = Some(word_entry);
+                },
+            )
+        });
+
+        // Copies the pointer to the closure
+        // If no one called on_back the closure would return none
+        word_detail.update_in(cx, |view, window, cx| {
+            if let Some(on_back) = view.on_back_button_pressed.clone() {
+                on_back(view.word_entry.clone(), window, cx);
+            }
+        });
+
+        let received = received.borrow();
+        let received = received
+            .as_ref()
+            .expect("on_back_button_pressed should have fired");
+        assert_eq!(received.main_kanji, "眠い");
+        assert_eq!(received.kana_reading, vec!["ねむい".to_string()]);
+        assert_eq!(received.primary_meaning, "sleepy");
+        assert_eq!(received.meanings, vec!["drowsy".to_string()]);
+        assert_eq!(received.part_of_speech.len(), 1);
+        assert_eq!(received.part_of_speech[0].label, "Adjective");
     }
 }

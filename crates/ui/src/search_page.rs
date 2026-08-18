@@ -26,7 +26,7 @@ impl SearchResultsView {
                     .search(query)
                     .unwrap_or_default()
                     .into_iter()
-                    .map(WordEntry::from_word)
+                    .filter_map(WordEntry::from_word)
                     .collect();
 
                 results_list_for_submit.update(cx, |results_list, cx| {
