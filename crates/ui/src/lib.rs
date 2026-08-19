@@ -4,6 +4,7 @@ use misojisho_core::jp_to_english_dictionary::JpToEnglishDictionary;
 mod app_root;
 mod results_list;
 mod search_page;
+mod selection;
 mod text_input;
 mod traits;
 mod utils;

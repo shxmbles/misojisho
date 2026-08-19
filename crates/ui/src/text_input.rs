@@ -2,6 +2,8 @@ use std::{ops::Range, rc::Rc};
 
 use gpui::*;
 
+use crate::selection::Selection;
+
 // The actions we will use with KeyBindings
 actions!(
     text_input,
@@ -41,10 +43,8 @@ pub struct TextInput {
     content: SharedString,
     placeholder: SharedString,
 
-    // Either where the curosr is or what we have highlighted
-    selected_range: Range<usize>,
-    selection_reversed: bool,
-    is_selecting: bool,
+    // Either where the cursor is or what we have highlighted
+    selection: Selection,
 
     // Only relevant during IME if japanese characters are still in a draft we underline them
     marked_range: Option<Range<usize>>,
@@ -65,12 +65,12 @@ pub struct TextInput {
 
 impl TextInput {
     pub fn new(placeholder: impl Into<SharedString>, cx: &mut Context<Self>) -> Self {
+        let selection = Selection::new(0..0);
+
         Self {
             content: "".into(),
             placeholder: placeholder.into(),
-            selected_range: 0..0,
-            selection_reversed: false,
-            is_selecting: false,
+            selection,
             marked_range: None,
             focus_handle: cx.focus_handle().tab_stop(true),
             on_submit: None,
@@ -91,20 +91,9 @@ impl TextInput {
         self
     }
 
-    /// The cursor positioning. If the selection is reversed then the range is at the start.
-    /// If not it is at the end.
-    fn cursor_offset(&self) -> usize {
-        if self.selection_reversed {
-            self.selected_range.start
-        } else {
-            self.selected_range.end
-        }
-    }
-
     /// Where the cursor moves to. Clears any selection.
     fn move_to(&mut self, offset: usize, cx: &mut Context<Self>) {
-        self.selected_range = offset..offset;
-        self.selection_reversed = false;
+        self.selection.move_to(offset);
         self.last_edit_end = None;
         self.last_edit_was_insertion = None;
         cx.notify();
@@ -113,15 +102,7 @@ impl TextInput {
     /// Moves just the selection's head (not the anchor), so it grows or
     /// shrinks. Flips direction if dragged past the anchor.
     fn select_to(&mut self, offset: usize, cx: &mut Context<Self>) {
-        if self.selection_reversed {
-            self.selected_range.start = offset;
-        } else {
-            self.selected_range.end = offset;
-        }
-        if self.selected_range.end < self.selected_range.start {
-            self.selection_reversed = !self.selection_reversed;
-            self.selected_range = self.selected_range.end..self.selected_range.start;
-        }
+        self.selection.select_to(offset);
         self.last_edit_end = None;
         self.last_edit_was_insertion = None;
         cx.notify();
@@ -156,7 +137,7 @@ impl TextInput {
         cx: &mut Context<Self>,
     ) {
         window.focus(&self.focus_handle(cx));
-        self.is_selecting = true;
+        self.selection.start_selecting();
         let offset = self.index_for_mouse_position(event.position);
         self.move_to(offset, cx);
     }
@@ -168,7 +149,7 @@ impl TextInput {
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) {
-        self.is_selecting = false;
+        self.selection.stop_selecting();
     }
 
     /// Clicking outside the text input unfocuses it.
@@ -188,7 +169,7 @@ impl TextInput {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.is_selecting {
+        if self.selection.is_selecting() {
             let offset = self.index_for_mouse_position(event.position);
             self.select_to(offset, cx);
         }
@@ -264,12 +245,12 @@ impl TextInput {
     // "secondary" resolves to cmd on macOS, ctrl on Windows/Linux
 
     fn left(&mut self, _: &Left, _window: &mut Window, cx: &mut Context<Self>) {
-        let cursor = self.previous_boundary(self.cursor_offset());
+        let cursor = self.previous_boundary(self.selection.cursor_offset());
         self.move_to(cursor, cx);
     }
 
     fn right(&mut self, _: &Right, _window: &mut Window, cx: &mut Context<Self>) {
-        let cursor = self.next_boundary(self.cursor_offset());
+        let cursor = self.next_boundary(self.selection.cursor_offset());
         self.move_to(cursor, cx);
     }
 
@@ -297,7 +278,7 @@ impl TextInput {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let cursor = self.cursor_offset();
+        let cursor = self.selection.cursor_offset();
         self.replace_text_in_range(Some(0..cursor), "", window, cx);
     }
 
@@ -321,8 +302,8 @@ impl TextInput {
     fn undo(&mut self, _: &Undo, _window: &mut Window, cx: &mut Context<Self>) {
         if let Some((content, selected_range)) = self.undo_stack.pop() {
             self.content = content;
-            self.selected_range = selected_range;
-            self.selection_reversed = false;
+            self.selection.selected_range = selected_range;
+            self.selection.selection_reversed = false;
             self.marked_range = None;
             self.last_edit_end = None;
             self.last_edit_was_insertion = None;
@@ -338,30 +319,31 @@ impl TextInput {
     }
 
     fn select_all(&mut self, _: &SelectAll, _window: &mut Window, cx: &mut Context<Self>) {
-        self.selected_range = 0..self.content.len();
+        self.selection.move_to(0);
+        self.selection.select_to(self.content.len());
         cx.notify();
     }
 
     fn copy_text(&mut self, _: &CopyText, _window: &mut Window, cx: &mut Context<Self>) {
-        if !self.selected_range.is_empty() {
-            let selected_content = self.content[self.selected_range.clone()].to_string();
+        if !self.selection.selected_range.is_empty() {
+            let selected_content = self.content[self.selection.selected_range.clone()].to_string();
             cx.write_to_clipboard(ClipboardItem::new_string(selected_content));
         }
     }
 
     fn cut(&mut self, _: &Cut, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.selected_range.is_empty() {
-            let selected_content = self.content[self.selected_range.clone()].to_string();
+        if !self.selection.selected_range.is_empty() {
+            let selected_content = self.content[self.selection.selected_range.clone()].to_string();
             cx.write_to_clipboard(ClipboardItem::new_string(selected_content));
             self.replace_text_in_range(None, "", window, cx);
         }
     }
 
     fn backspace(&mut self, _: &Backspace, window: &mut Window, cx: &mut Context<Self>) {
-        if self.selected_range.is_empty() {
-            let cursor = self.cursor_offset();
+        if self.selection.selected_range.is_empty() {
+            let cursor = self.selection.cursor_offset();
             let start = self.previous_boundary(cursor);
-            self.selected_range = start..cursor;
+            self.selection.selected_range = start..cursor;
         }
         self.replace_text_in_range(None, "", window, cx);
     }
@@ -390,8 +372,8 @@ impl EntityInputHandler for TextInput {
         _cx: &mut Context<Self>,
     ) -> Option<UTF16Selection> {
         Some(UTF16Selection {
-            range: self.range_to_utf16(&self.selected_range),
-            reversed: self.selection_reversed,
+            range: self.range_to_utf16(&self.selection.selected_range),
+            reversed: self.selection.selection_reversed,
         })
     }
 
@@ -423,7 +405,7 @@ impl EntityInputHandler for TextInput {
         let range = range_utf16
             .map(|r| self.range_from_utf16(&r))
             .or(self.marked_range.clone())
-            .unwrap_or(self.selected_range.clone());
+            .unwrap_or(self.selection.selected_range.clone());
 
         let is_insertion = !text.is_empty();
         let continues_previous_edit = match self.last_edit_was_insertion {
@@ -433,14 +415,14 @@ impl EntityInputHandler for TextInput {
         };
         if !continues_previous_edit {
             self.undo_stack
-                .push((self.content.clone(), self.selected_range.clone()));
+                .push((self.content.clone(), self.selection.selected_range.clone()));
         }
 
         self.content =
             (self.content[..range.start].to_owned() + text + &self.content[range.end..]).into();
 
         let cursor = range.start + text.len();
-        self.selected_range = cursor..cursor;
+        self.selection.selected_range = cursor..cursor;
         self.last_edit_end = Some(cursor);
         self.last_edit_was_insertion = Some(is_insertion);
         self.marked_range = None;
@@ -460,7 +442,7 @@ impl EntityInputHandler for TextInput {
         let range = range
             .map(|r| self.range_from_utf16(&r))
             .or(self.marked_range.clone())
-            .unwrap_or(self.selected_range.clone());
+            .unwrap_or(self.selection.selected_range.clone());
 
         self.content =
             (self.content[..range.start].to_owned() + new_text + &self.content[range.end..]).into();
@@ -474,7 +456,7 @@ impl EntityInputHandler for TextInput {
 
         // new_selected_range is UTF-16 units relative to new_text
         // specifically (not self.content), so convert against new_text.
-        self.selected_range = new_selected_range
+        self.selection.selected_range = new_selected_range
             .map(|r| {
                 let start = Self::offset_from_utf16(new_text, r.start);
                 let end = Self::offset_from_utf16(new_text, r.end);
@@ -583,8 +565,8 @@ impl Element for TextElement {
     ) -> Self::PrepaintState {
         let input = self.input.read(cx);
         let content = input.content.clone();
-        let cursor = input.cursor_offset();
-        let selected_range = input.selected_range.clone();
+        let cursor = input.selection.cursor_offset();
+        let selected_range = input.selection.selected_range.clone();
         let style = window.text_style();
 
         let (display_text, text_color) = if content.is_empty() {
@@ -787,6 +769,8 @@ pub fn bind_keys(cx: &mut App) {
 mod tests {
     use gpui::{ClipboardItem, EntityInputHandler, SharedString, TestAppContext};
 
+    use crate::selection::Selection;
+
     use super::{
         Backspace, CopyText, Cut, Esc, Left, Right, SecondaryBackspace, SecondaryLeft,
         SecondaryRight, SecondaryShiftLeft, SecondaryShiftRight, SelectAll, TextInput, Undo,
@@ -799,9 +783,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello".into(),
             placeholder: "".into(),
-            selected_range: 5..5,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(5..5),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -826,9 +808,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "海賊になる男だ".into(),
             placeholder: "".into(),
-            selected_range: 21..21,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(21..21),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -853,9 +833,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "".into(),
             placeholder: "".into(),
-            selected_range: 0..0,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(0..0),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -881,9 +859,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello".into(),
             placeholder: "".into(),
-            selected_range: 5..5,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(5..5),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -899,7 +875,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 4..4);
+            assert_eq!(text_input.selection.selected_range, 4..4);
         });
     }
 
@@ -908,9 +884,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "子宮から一年早まった人間は偉いっすね".into(),
             placeholder: "".into(),
-            selected_range: 54..54,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(54..54),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -926,7 +900,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 51..51);
+            assert_eq!(text_input.selection.selected_range, 51..51);
         });
     }
 
@@ -935,9 +909,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "".into(),
             placeholder: "".into(),
-            selected_range: 0..0,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(0..0),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -953,7 +925,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 0..0);
+            assert_eq!(text_input.selection.selected_range, 0..0);
         });
     }
 
@@ -964,9 +936,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello".into(),
             placeholder: "".into(),
-            selected_range: 4..4,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(4..4),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -982,7 +952,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 5..5);
+            assert_eq!(text_input.selection.selected_range, 5..5);
         });
     }
 
@@ -991,9 +961,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "安心安心".into(),
             placeholder: "".into(),
-            selected_range: 9..9,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(9..9),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1009,7 +977,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 12..12);
+            assert_eq!(text_input.selection.selected_range, 12..12);
         });
     }
 
@@ -1018,9 +986,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello".into(),
             placeholder: "".into(),
-            selected_range: 5..5,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(5..5),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1036,7 +1002,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 5..5);
+            assert_eq!(text_input.selection.selected_range, 5..5);
         });
     }
 
@@ -1046,9 +1012,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello".into(),
             placeholder: "".into(),
-            selected_range: 5..5,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(5..5),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1064,7 +1028,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 0..0)
+            assert_eq!(text_input.selection.selected_range, 0..0)
         })
     }
 
@@ -1073,9 +1037,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "俺は誰".into(),
             placeholder: "".into(),
-            selected_range: 9..9,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(9..9),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1091,7 +1053,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 0..0)
+            assert_eq!(text_input.selection.selected_range, 0..0)
         })
     }
 
@@ -1100,9 +1062,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello".into(),
             placeholder: "".into(),
-            selected_range: 3..3,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(3..3),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1118,7 +1078,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 0..0)
+            assert_eq!(text_input.selection.selected_range, 0..0)
         })
     }
 
@@ -1127,9 +1087,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "お腹がすいた".into(),
             placeholder: "".into(),
-            selected_range: 6..6,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(6..6),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1145,7 +1103,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 0..0)
+            assert_eq!(text_input.selection.selected_range, 0..0)
         })
     }
 
@@ -1154,9 +1112,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "".into(),
             placeholder: "".into(),
-            selected_range: 0..0,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(0..0),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1172,7 +1128,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 0..0)
+            assert_eq!(text_input.selection.selected_range, 0..0)
         })
     }
 
@@ -1183,9 +1139,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello".into(),
             placeholder: "".into(),
-            selected_range: 0..0,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(0..0),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1201,7 +1155,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 5..5)
+            assert_eq!(text_input.selection.selected_range, 5..5)
         })
     }
 
@@ -1210,9 +1164,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "温泉に行きたいな".into(),
             placeholder: "".into(),
-            selected_range: 0..0,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(0..0),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1228,7 +1180,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 24..24)
+            assert_eq!(text_input.selection.selected_range, 24..24)
         })
     }
 
@@ -1237,9 +1189,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello".into(),
             placeholder: "".into(),
-            selected_range: 2..2,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(2..2),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1255,7 +1205,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 5..5)
+            assert_eq!(text_input.selection.selected_range, 5..5)
         })
     }
 
@@ -1264,9 +1214,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "コンピューター".into(),
             placeholder: "".into(),
-            selected_range: 8..8,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(8..8),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1282,7 +1230,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 21..21)
+            assert_eq!(text_input.selection.selected_range, 21..21)
         })
     }
 
@@ -1291,9 +1239,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "".into(),
             placeholder: "".into(),
-            selected_range: 0..0,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(0..0),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1309,7 +1255,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 0..0)
+            assert_eq!(text_input.selection.selected_range, 0..0)
         })
     }
 
@@ -1320,9 +1266,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello".into(),
             placeholder: "".into(),
-            selected_range: 2..2,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(2..2),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1338,7 +1282,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 0..5);
+            assert_eq!(text_input.selection.selected_range, 0..5);
         });
     }
 
@@ -1347,9 +1291,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "こんにちは".into(),
             placeholder: "".into(),
-            selected_range: 3..3,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(3..3),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1365,7 +1307,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 0..15);
+            assert_eq!(text_input.selection.selected_range, 0..15);
         });
     }
 
@@ -1374,9 +1316,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "".into(),
             placeholder: "".into(),
-            selected_range: 0..0,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(0..0),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1392,7 +1332,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 0..0);
+            assert_eq!(text_input.selection.selected_range, 0..0);
         });
     }
 
@@ -1403,9 +1343,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello world".into(),
             placeholder: "".into(),
-            selected_range: 0..5,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(0..5),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1432,9 +1370,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "海賊王におれはなる".into(),
             placeholder: "".into(),
-            selected_range: 0..9,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(0..9),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1460,9 +1396,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello".into(),
             placeholder: "".into(),
-            selected_range: 3..3,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(3..3),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1494,9 +1428,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello world".into(),
             placeholder: "".into(),
-            selected_range: 0..6,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(0..6),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1515,7 +1447,7 @@ mod tests {
             let clipboard_text = cx.read_from_clipboard().and_then(|item| item.text());
             assert_eq!(clipboard_text, Some("hello ".to_string()));
             assert_eq!(text_input.content.to_string(), "world");
-            assert_eq!(text_input.selected_range, 0..0);
+            assert_eq!(text_input.selection.selected_range, 0..0);
         });
     }
 
@@ -1524,9 +1456,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "海賊王におれはなる".into(),
             placeholder: "".into(),
-            selected_range: 0..9,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(0..9),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1554,9 +1484,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello".into(),
             placeholder: "".into(),
-            selected_range: 3..3,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(3..3),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1583,9 +1511,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello".into(),
             placeholder: "".into(),
-            selected_range: 5..5,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(5..5),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1601,8 +1527,8 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 0..5);
-            assert!(text_input.selection_reversed);
+            assert_eq!(text_input.selection.selected_range, 0..5);
+            assert!(text_input.selection.selection_reversed);
         });
     }
 
@@ -1611,9 +1537,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "俺は誰".into(),
             placeholder: "".into(),
-            selected_range: 9..9,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(9..9),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1629,8 +1553,8 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 0..9);
-            assert!(text_input.selection_reversed);
+            assert_eq!(text_input.selection.selected_range, 0..9);
+            assert!(text_input.selection.selection_reversed);
         });
     }
 
@@ -1639,9 +1563,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello".into(),
             placeholder: "".into(),
-            selected_range: 0..0,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(0..0),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1657,7 +1579,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 0..0);
+            assert_eq!(text_input.selection.selected_range, 0..0);
         });
     }
 
@@ -1668,9 +1590,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello".into(),
             placeholder: "".into(),
-            selected_range: 0..0,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(0..0),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1686,8 +1606,8 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 0..5);
-            assert!(!text_input.selection_reversed);
+            assert_eq!(text_input.selection.selected_range, 0..5);
+            assert!(!text_input.selection.selection_reversed);
         });
     }
 
@@ -1696,9 +1616,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "温泉に行きたいな".into(),
             placeholder: "".into(),
-            selected_range: 0..0,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(0..0),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1714,8 +1632,8 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 0..24);
-            assert!(!text_input.selection_reversed);
+            assert_eq!(text_input.selection.selected_range, 0..24);
+            assert!(!text_input.selection.selection_reversed);
         });
     }
 
@@ -1724,9 +1642,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello".into(),
             placeholder: "".into(),
-            selected_range: 5..5,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(5..5),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1742,7 +1658,7 @@ mod tests {
         });
 
         text_input.read_with(cx, |text_input, _| {
-            assert_eq!(text_input.selected_range, 5..5);
+            assert_eq!(text_input.selection.selected_range, 5..5);
         });
     }
 
@@ -1753,9 +1669,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello world".into(),
             placeholder: "".into(),
-            selected_range: 6..6,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(6..6),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1772,7 +1686,7 @@ mod tests {
 
         text_input.read_with(cx, |text_input, _| {
             assert_eq!(text_input.content.to_string(), "world");
-            assert_eq!(text_input.selected_range, 0..0);
+            assert_eq!(text_input.selection.selected_range, 0..0);
         });
     }
 
@@ -1783,9 +1697,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "hello".into(),
             placeholder: "".into(),
-            selected_range: 0..0,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(0..0),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1814,9 +1726,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "".into(),
             placeholder: "".into(),
-            selected_range: 0..0,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(0..0),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
@@ -1858,9 +1768,7 @@ mod tests {
         let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
             content: "".into(),
             placeholder: "".into(),
-            selected_range: 0..0,
-            selection_reversed: false,
-            is_selecting: false,
+            selection: Selection::new(0..0),
             marked_range: None,
             focus_handle: cx.focus_handle(),
             on_submit: None,
