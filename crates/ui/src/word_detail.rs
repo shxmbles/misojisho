@@ -7,7 +7,7 @@ use gpui::{
 
 use crate::{
     results_list::{PosTag, WordEntry},
-    text::SelectableText,
+    selectable_text::SelectableText,
     traits::styled_ext::StyledExt,
     utils::title_bar_height,
 };

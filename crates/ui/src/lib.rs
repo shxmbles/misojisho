@@ -5,7 +5,7 @@ mod app_root;
 mod results_list;
 mod search_page;
 mod selection;
-mod text;
+mod selectable_text;
 mod text_input;
 mod traits;
 mod utils;
