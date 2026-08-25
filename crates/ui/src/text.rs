@@ -6,6 +6,23 @@ use gpui::{
 
 use crate::selection::Selection;
 
+#[derive(Clone, Copy, PartialEq)]
+enum Charkind {
+    Word,
+    Whitespace,
+    Punctuation,
+}
+
+fn char_kind(c: char) -> Charkind {
+    if c.is_alphanumeric() {
+        Charkind::Word
+    } else if c.is_whitespace() {
+        Charkind::Whitespace
+    } else {
+        Charkind::Punctuation
+    }
+}
+
 // The data
 pub struct SelectableText {
     pub content: SharedString,
@@ -31,11 +48,43 @@ impl SelectableText {
     }
 
     /// Selects the entire word
-    fn double_click(&mut self, cx: &mut Context<Self>) {
-        // The problem im running into here is that
-        // I need to select to up until there is a " " or a "" and i think
-        // this would need to go both ways
-        self.selection.select_to(self.content.len());
+    fn double_click(&mut self, offset: usize, cx: &mut Context<Self>) {
+        let content: &str = &self.content;
+
+        let Some(kind) = content[offset..]
+            .chars()
+            .next()
+            .or_else(|| content[offset..].chars().next_back())
+            .map(char_kind)
+        else {
+            return;
+        };
+
+        let start = content[..offset]
+            .char_indices()
+            .rev()
+            .take_while(|&(_, c)| char_kind(c) == kind)
+            .last()
+            .map_or(offset, |(i, _)| i);
+
+        let end = content[offset..]
+            .char_indices()
+            .take_while(|&(_, c)| char_kind(c) == kind)
+            .last()
+            .map_or(offset, |(i, c)| offset + i + c.len_utf8());
+
+        self.selection.move_to(start);
+        self.selection.select_to(end);
+        cx.notify()
+    }
+
+    /// Selects the entire 'sentence'
+    fn triple_click(&mut self, cx: &mut Context<Self>) {
+        let start = 0;
+        let end = self.content.len();
+        self.selection.move_to(start);
+        self.selection.select_to(end);
+        cx.notify();
     }
 
     fn on_mouse_up(&mut self, _event: &MouseUpEvent, _window: &mut Window, cx: &mut Context<Self>) {
@@ -66,28 +115,30 @@ impl SelectableText {
         cx: &mut Context<Self>,
     ) {
         println!("hit");
-        // let offset = self.index_for_mouse_position(event.position, window.line_height());
-
-        // match event.click_count {
-        //     1 => {
-        //         println!("tapped once")
-        //     }
-        //     2 => {
-        //         println!("tapped twice")
-        //     }
-        //     3 => {
-        //         println!("tapped thrice")
-        //     }
-        //     // NO OP
-        //     _ => {}
         window.focus(&self.focus_handle);
         let offset = self
             .text_layout
             .index_for_position(event.position)
             .unwrap_or_else(|i| i);
-        self.selection.start_selecting();
-        self.selection.move_to(offset);
-        cx.notify();
+
+        match event.click_count {
+            2 => {
+                self.double_click(offset, cx);
+            }
+            3 => {
+                self.triple_click(cx);
+            }
+            _ => {
+                window.focus(&self.focus_handle);
+                let offset = self
+                    .text_layout
+                    .index_for_position(event.position)
+                    .unwrap_or_else(|i| i);
+                self.selection.start_selecting();
+                self.selection.move_to(offset);
+                cx.notify();
+            }
+        }
     }
 
     fn on_click_outside(
