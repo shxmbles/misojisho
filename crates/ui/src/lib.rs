@@ -16,6 +16,7 @@ use crate::app_root::AppRoot;
 pub fn run(dictionary: JpToEnglishDictionary) {
     Application::new().run(move |cx: &mut App| {
         text_input::bind_keys(cx);
+        components::bind_keys(cx);
 
         let window_options = WindowOptions {
             titlebar: Some(TitlebarOptions {

@@ -1,10 +1,19 @@
 use gpui::{
-    App, Context, FocusHandle, Focusable, HighlightStyle, InteractiveElement, IntoElement,
-    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement, Render, SharedString,
-    StyledText, TextLayout, Window, div, rgba,
+    App, ClipboardItem, Context, FocusHandle, Focusable, HighlightStyle, InteractiveElement,
+    IntoElement, KeyBinding, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
+    ParentElement, Render, SharedString, StyledText, TextLayout, Window, actions, div, rgba,
 };
 
 use crate::selection::Selection;
+
+actions!(selectable_text, [SecondaryC, Esc]);
+
+pub(crate) fn bind_keys(cx: &mut App) {
+    cx.bind_keys([
+        KeyBinding::new("secondary-c", SecondaryC, None),
+        KeyBinding::new("escape", Esc, None),
+    ]);
+}
 
 #[derive(Clone, Copy, PartialEq)]
 enum Charkind {
@@ -148,6 +157,18 @@ impl SelectableText {
         self.selection.move_to(0);
         cx.notify();
     }
+
+    fn secondary_c(&mut self, _event: &SecondaryC, _window: &mut Window, cx: &mut Context<Self>) {
+        if !self.selection.selected_range.is_empty() {
+            let selected_content = self.content[self.selection.selected_range.clone()].to_string();
+            cx.write_to_clipboard(ClipboardItem::new_string(selected_content));
+        }
+    }
+
+    fn escape(&mut self, _event: &Esc, _window: &mut Window, cx: &mut Context<Self>) {
+        self.selection.selected_range = 0..0;
+        cx.notify();
+    }
 }
 
 impl Render for SelectableText {
@@ -169,11 +190,14 @@ impl Render for SelectableText {
 
         div()
             .id("selectable-text")
+            .track_focus(&self.focus_handle(cx))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
             .on_mouse_down_out(cx.listener(Self::on_click_outside))
+            .on_action(cx.listener(Self::secondary_c))
+            .on_action(cx.listener(Self::escape))
             .child(styled_text)
     }
 }
@@ -185,7 +209,13 @@ mod tests {
         TextLayout, VisualTestContext,
     };
 
-    use crate::{components::SelectableText, selection::Selection};
+    use crate::{
+        components::{
+            SelectableText,
+            selectable_text::{Esc, SecondaryC},
+        },
+        selection::Selection,
+    };
 
     fn make_selectable_text<'a>(
         cx: &'a mut TestAppContext,
@@ -455,6 +485,38 @@ mod tests {
                 window,
                 cx,
             );
+        });
+
+        selectable_text.read_with(cx, |text, _| {
+            assert_eq!(text.selection.selected_range, 0..0);
+        })
+    }
+
+    // Keybinds
+
+    #[gpui::test]
+    fn should_copy_selected_text_with_secondary_c(cx: &mut TestAppContext) {
+        let (selectable_text, cx) = make_selectable_text(cx, "たこ焼き食べたい。行こうぜ", 0);
+
+        selectable_text.update_in(cx, |text, window, cx| {
+            text.triple_click(cx);
+            text.secondary_c(&SecondaryC, window, cx);
+        });
+
+        let clipboard_text = cx.read_from_clipboard().and_then(|item| item.text());
+        assert_eq!(
+            clipboard_text,
+            Some("たこ焼き食べたい。行こうぜ".to_string())
+        );
+    }
+
+    #[gpui::test]
+    fn should_clear_selection_on_escape(cx: &mut TestAppContext) {
+        let (selectable_text, cx) = make_selectable_text(cx, "hello world", 0);
+
+        selectable_text.update_in(cx, |text, window, cx| {
+            text.double_click(text.selection.cursor_offset(), cx);
+            text.escape(&Esc, window, cx);
         });
 
         selectable_text.read_with(cx, |text, _| {
