@@ -6,7 +6,6 @@ mod components;
 mod results_list;
 mod search_page;
 mod selection;
-mod text_input;
 mod traits;
 mod utils;
 mod word_detail;
@@ -15,7 +14,6 @@ use crate::app_root::AppRoot;
 
 pub fn run(dictionary: JpToEnglishDictionary) {
     Application::new().run(move |cx: &mut App| {
-        text_input::bind_keys(cx);
         components::bind_keys(cx);
 
         let window_options = WindowOptions {

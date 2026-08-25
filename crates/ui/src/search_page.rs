@@ -1,8 +1,8 @@
 use gpui::*;
 use misojisho_core::jp_to_english_dictionary::JpToEnglishDictionary;
 
+use crate::components::TextInput;
 use crate::results_list::{ResultsList, WordEntry};
-use crate::text_input::TextInput;
 use crate::traits::styled_ext::StyledExt;
 
 pub struct SearchResultsView {
