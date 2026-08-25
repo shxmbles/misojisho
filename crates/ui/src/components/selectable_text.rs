@@ -23,7 +23,7 @@ fn char_kind(c: char) -> Charkind {
     }
 }
 
-// The data
+/// Text that can be highlighted, copied, right clicked to open copy menu (coming soon).
 pub struct SelectableText {
     pub content: SharedString,
     selection: Selection,
@@ -185,7 +185,7 @@ mod tests {
         TextLayout, VisualTestContext,
     };
 
-    use crate::{selectable_text::SelectableText, selection::Selection};
+    use crate::{components::SelectableText, selection::Selection};
 
     fn make_selectable_text<'a>(
         cx: &'a mut TestAppContext,
@@ -418,8 +418,8 @@ mod tests {
         })
     }
 
-    // Extend selection 
-    
+    // Extend selection
+
     #[gpui::test]
     fn should_extend_selection_to_offset_on_mouse_move_when_selecting(cx: &mut TestAppContext) {
         let (selectable_text, cx) = make_selectable_text(cx, "hello world", 0);

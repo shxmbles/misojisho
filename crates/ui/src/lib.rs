@@ -2,10 +2,10 @@ use gpui::*;
 use misojisho_core::jp_to_english_dictionary::JpToEnglishDictionary;
 
 mod app_root;
+mod components;
 mod results_list;
 mod search_page;
 mod selection;
-mod selectable_text;
 mod text_input;
 mod traits;
 mod utils;
