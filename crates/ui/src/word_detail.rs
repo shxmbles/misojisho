@@ -7,6 +7,7 @@ use gpui::{
 
 use crate::{
     results_list::{PosTag, WordEntry},
+    text::SelectableText,
     traits::styled_ext::StyledExt,
     utils::title_bar_height,
 };
@@ -64,22 +65,21 @@ impl Render for WordDetailView {
     }
 }
 
-#[derive(Default)]
 pub struct WordDetail {
     main_kanji: String,
     kana_reading: Vec<String>,
-    primary_meaning: String,
-    meanings: Vec<String>,
+    primary_meaning: Entity<SelectableText>,
+    meanings: Entity<SelectableText>,
     part_of_speech: Vec<PosTag>,
 }
 
 impl WordDetail {
-    pub fn new(word_entry: WordEntry, _cx: &mut Context<Self>) -> Self {
+    pub fn new(word_entry: WordEntry, cx: &mut Context<Self>) -> Self {
         Self {
             main_kanji: word_entry.main_kanji,
             kana_reading: word_entry.kana_reading,
-            primary_meaning: word_entry.primary_meaning,
-            meanings: word_entry.meanings,
+            primary_meaning: cx.new(|cx| SelectableText::new(word_entry.primary_meaning, cx)),
+            meanings: cx.new(|cx| SelectableText::new(word_entry.meanings.join(", "), cx)),
             part_of_speech: word_entry.part_of_speech,
         }
     }
@@ -105,8 +105,8 @@ impl Render for WordDetail {
                     .child(
                         div()
                             .v_flex()
-                            .child(self.primary_meaning.clone())
-                            .child(self.meanings.join(", "))
+                            .child(div().child(self.primary_meaning.clone()).bg(rgb(0xff0000)))
+                            .child(self.meanings.clone())
                             .text_color(rgb(0x1C2024)),
                     )
                     .child(
@@ -150,11 +150,11 @@ mod tests {
 
         let (word_detail, cx) = cx.add_window_view(|_window, cx| WordDetail::new(word_entry, cx));
 
-        word_detail.read_with(cx, |word_detail, _cx| {
+        word_detail.read_with(cx, |word_detail, cx| {
             assert_eq!(word_detail.main_kanji, "根気");
             assert_eq!(word_detail.kana_reading, vec!["こんき".to_string()]);
-            assert_eq!(word_detail.primary_meaning, "patience");
-            assert_eq!(word_detail.meanings, vec!["perseverance".to_string()]);
+            assert_eq!(word_detail.primary_meaning.read(cx).content, "patience");
+            assert_eq!(word_detail.meanings.read(cx).content, "perseverance");
             assert_eq!(word_detail.part_of_speech.len(), 1);
             assert_eq!(word_detail.part_of_speech[0].label, "Noun");
         });
