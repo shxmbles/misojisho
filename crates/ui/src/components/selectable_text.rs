@@ -5,6 +5,7 @@ use gpui::{
 };
 
 use crate::selection::Selection;
+use crate::text::word_boundary::surrounding_word_range;
 
 actions!(selectable_text, [SecondaryC, Esc]);
 
@@ -13,23 +14,6 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new("secondary-c", SecondaryC, None),
         KeyBinding::new("escape", Esc, None),
     ]);
-}
-
-#[derive(Clone, Copy, PartialEq)]
-enum Charkind {
-    Word,
-    Whitespace,
-    Punctuation,
-}
-
-fn char_kind(c: char) -> Charkind {
-    if c.is_alphanumeric() {
-        Charkind::Word
-    } else if c.is_whitespace() {
-        Charkind::Whitespace
-    } else {
-        Charkind::Punctuation
-    }
 }
 
 /// Text that can be highlighted, copied, right clicked to open copy menu (coming soon).
@@ -58,32 +42,9 @@ impl SelectableText {
 
     /// Selects the entire word
     fn double_click(&mut self, offset: usize, cx: &mut Context<Self>) {
-        let content: &str = &self.content;
-
-        let Some(kind) = content[offset..]
-            .chars()
-            .next()
-            .or_else(|| content[offset..].chars().next_back())
-            .map(char_kind)
-        else {
-            return;
-        };
-
-        let start = content[..offset]
-            .char_indices()
-            .rev()
-            .take_while(|&(_, c)| char_kind(c) == kind)
-            .last()
-            .map_or(offset, |(i, _)| i);
-
-        let end = content[offset..]
-            .char_indices()
-            .take_while(|&(_, c)| char_kind(c) == kind)
-            .last()
-            .map_or(offset, |(i, c)| offset + i + c.len_utf8());
-
-        self.selection.move_to(start);
-        self.selection.select_to(end);
+        let range = surrounding_word_range(&self.content, offset);
+        self.selection.move_to(range.start);
+        self.selection.select_to(range.end);
         cx.notify()
     }
 
@@ -298,7 +259,7 @@ mod tests {
     }
 
     #[gpui::test]
-    fn should_select_nothing_on_double_click_past_end_of_content(cx: &mut TestAppContext) {
+    fn should_select_last_word_on_double_click_past_end_of_content(cx: &mut TestAppContext) {
         let (selectable_text, cx) = make_selectable_text(cx, "hello world", 11);
 
         selectable_text.update_in(cx, |text, _window, cx| {
@@ -306,7 +267,7 @@ mod tests {
         });
 
         selectable_text.read_with(cx, |text, _| {
-            assert_eq!(text.selection.selected_range, 11..11);
+            assert_eq!(text.selection.selected_range, 6..11);
         })
     }
 
@@ -337,7 +298,7 @@ mod tests {
     }
 
     #[gpui::test]
-    fn should_select_only_boundary_space_on_double_click_between_two_words(
+    fn should_prefer_preceding_word_on_double_click_between_two_words(
         cx: &mut TestAppContext,
     ) {
         let (selectable_text, cx) = make_selectable_text(cx, "hello me", 5);
@@ -347,7 +308,7 @@ mod tests {
         });
 
         selectable_text.read_with(cx, |text, _| {
-            assert_eq!(text.selection.selected_range, 5..6);
+            assert_eq!(text.selection.selected_range, 0..5);
         })
     }
 
