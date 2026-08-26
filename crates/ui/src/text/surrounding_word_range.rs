@@ -17,7 +17,17 @@ fn char_kind(c: char) -> Charkind {
     }
 }
 
-/// Returns the range of the surroundng word range
+/// Byte range of the word touching `offset` in `content`.
+///
+/// ```text
+/// "hello world"
+///         |
+///     offset = 8  ->  6..11 ("world")
+///
+/// "hello world"
+///       |
+///  offset = 5  ->  0..5 ("hello", not the space)
+/// ```
 pub(crate) fn surrounding_word_range(content: &str, offset: usize) -> Range<usize> {
     let content: &str = content;
 
@@ -46,7 +56,7 @@ pub(crate) fn surrounding_word_range(content: &str, offset: usize) -> Range<usiz
 
 #[cfg(test)]
 mod tests {
-    use crate::text::word_boundary::surrounding_word_range;
+    use crate::text::surrounding_word_range::surrounding_word_range;
 
     #[test]
     fn should_return_surrounding_word_range() {

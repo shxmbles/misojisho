@@ -2,7 +2,7 @@ use std::{ops::Range, rc::Rc};
 
 use gpui::*;
 
-use crate::{selection::Selection, text::word_boundary::surrounding_word_range};
+use crate::{selection::Selection, text::surrounding_word_range::surrounding_word_range};
 
 // The actions we will use with KeyBindings
 actions!(

@@ -5,7 +5,7 @@ use gpui::{
 };
 
 use crate::selection::Selection;
-use crate::text::word_boundary::surrounding_word_range;
+use crate::text::surrounding_word_range::surrounding_word_range;
 
 actions!(selectable_text, [SecondaryC, Esc]);
 

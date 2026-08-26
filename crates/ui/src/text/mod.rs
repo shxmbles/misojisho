@@ -1,1 +1,1 @@
-pub(crate) mod word_boundary;
+pub(crate) mod surrounding_word_range;
