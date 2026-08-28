@@ -7,7 +7,7 @@ const NO_PRIORITY: u8 = u8::MAX;
 #[derive(Debug, PartialEq, Default)]
 pub struct JpToEnglishWord {
     /// JMdict entry sequence number (`<ent_seq>`) which is unique per entry.
-    pub id: String,
+    pub id: u32,
     /// Kanji spellings (`<keb>`). Not every word has a kanji form.
     pub kanji: Option<Vec<String>>,
     /// Kana reading(s) (`<reb>`). Every entry has at least one.
@@ -178,14 +178,14 @@ mod tests {
     /// filtering or sorting at all, so they're defaulted to empty/`None`
     /// here rather than exposed as parameters.
     fn make_word(
-        id: &str,
+        id: u32,
         kanji: Option<Vec<&str>>,
         kana_reading: Vec<&str>,
         use_frequency: Option<Vec<UseFrequency>>,
         english_meaning: Vec<&str>,
     ) -> JpToEnglishWord {
         JpToEnglishWord {
-            id: id.to_string(),
+            id,
             kanji: kanji.map(|k| k.into_iter().map(String::from).collect()),
             kana_reading: kana_reading.into_iter().map(String::from).collect(),
             use_frequency,
@@ -217,35 +217,35 @@ mod tests {
     fn should_return_top_result_when_kanji_exactly_matches_query() {
         let dictionary = make_dictionary(vec![
             make_word(
-                "1358280",
+                1358280,
                 Some(vec!["食べる"]),
                 vec!["たべる"],
                 Some(vec![UseFrequency::Ichi(1), UseFrequency::News(1)]),
                 vec!["to eat"],
             ),
             make_word(
-                "1591050",
+                1591050,
                 Some(vec!["話す"]),
                 vec!["はなす"],
                 Some(vec![UseFrequency::Ichi(1)]),
                 vec!["to speak", "to talk"],
             ),
             make_word(
-                "1157170",
+                1157170,
                 None,
                 vec!["する"],
                 Some(vec![UseFrequency::Ichi(1)]),
                 vec!["to do"],
             ),
             make_word(
-                "1587040",
+                1587040,
                 Some(vec!["今日"]),
                 vec!["きょう", "こんにち"],
                 Some(vec![UseFrequency::Ichi(1), UseFrequency::News(1)]),
                 vec!["today", "this day"],
             ),
             make_word(
-                "1591090",
+                1591090,
                 Some(vec!["大きい"]),
                 vec!["おおきい"],
                 Some(vec![
@@ -262,13 +262,13 @@ mod tests {
             .and_then(|v| v.into_iter().next())
             .expect("expected a search result for 食べる");
 
-        assert_eq!(actual.id, "1358280");
+        assert_eq!(actual.id, 1358280);
     }
 
     #[test]
     fn should_return_none_when_query_is_empty() {
         let dictionary = make_dictionary(vec![make_word(
-            "1358280",
+            1358280,
             Some(vec!["食べる"]),
             vec!["たべる"],
             None,
@@ -283,7 +283,7 @@ mod tests {
     #[test]
     fn should_return_none_when_no_words_match_query() {
         let dictionary = make_dictionary(vec![make_word(
-            "1358280",
+            1358280,
             Some(vec!["食べる"]),
             vec!["たべる"],
             None,
@@ -299,14 +299,14 @@ mod tests {
     fn should_return_result_when_english_meaning_matches_query() {
         let dictionary = make_dictionary(vec![
             make_word(
-                "1358280",
+                1358280,
                 Some(vec!["食べる"]),
                 vec!["たべる"],
                 None,
                 vec!["to eat"],
             ),
             make_word(
-                "1591090",
+                1591090,
                 Some(vec!["大きい"]),
                 vec!["おおきい"],
                 None,
@@ -319,13 +319,13 @@ mod tests {
             .and_then(|v| v.into_iter().next())
             .expect("expected a search result for 'big'");
 
-        assert_eq!(actual.id, "1591090");
+        assert_eq!(actual.id, 1591090);
     }
 
     #[test]
     fn should_match_partial_kanji_query() {
         let dictionary = make_dictionary(vec![make_word(
-            "1358280",
+            1358280,
             Some(vec!["食べる"]),
             vec!["たべる"],
             None,
@@ -338,7 +338,7 @@ mod tests {
             .and_then(|v| v.into_iter().next())
             .expect("expected a partial kanji match for 食べ");
 
-        assert_eq!(actual.id, "1358280");
+        assert_eq!(actual.id, 1358280);
     }
 
     #[test]
@@ -349,14 +349,14 @@ mod tests {
         // sort, and is stable) should still put the higher-frequency word first.
         let dictionary = make_dictionary(vec![
             make_word(
-                "slow_freq",
+                123,
                 None,
                 vec!["あるく"],
                 Some(vec![UseFrequency::News(2)]),
                 vec!["to walk", "to run"],
             ),
             make_word(
-                "fast_freq",
+                234,
                 None,
                 vec!["じょぐ"],
                 Some(vec![UseFrequency::Ichi(1)]),
@@ -369,7 +369,7 @@ mod tests {
             .and_then(|v| v.into_iter().next())
             .expect("expected a search result for 'run'");
 
-        assert_eq!(actual.id, "fast_freq");
+        assert_eq!(actual.id, 234);
     }
 
     #[test]
@@ -380,14 +380,14 @@ mod tests {
         // should come before the word with no frequency data (NO_PRIORITY fallback).
         let dictionary = make_dictionary(vec![
             make_word(
-                "no_freq",
+                123,
                 Some(vec!["飲む"]),
                 vec!["のむ"],
                 None,
                 vec!["to drink"],
             ),
             make_word(
-                "has_freq",
+                234,
                 Some(vec!["飲む"]),
                 vec!["のむ"],
                 Some(vec![UseFrequency::Ichi(1)]),
@@ -399,8 +399,8 @@ mod tests {
             .search("飲む")
             .expect("expected search results for 飲む");
 
-        let ids: Vec<&str> = actual.iter().map(|w| w.id.as_str()).collect();
+        let ids: Vec<u32> = actual.iter().map(|w| w.id).collect();
 
-        assert_eq!(ids, vec!["has_freq", "no_freq"]);
+        assert_eq!(ids, vec![234, 123]);
     }
 }

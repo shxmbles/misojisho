@@ -204,7 +204,7 @@ mod tests {
 
     fn word_with_multiple_variants() -> JpToEnglishWord {
         JpToEnglishWord {
-            id: "1001".to_string(),
+            id: 1001,
             kanji: Some(vec!["行く".to_string(), "往く".to_string()]),
             kana_reading: vec!["いく".to_string(), "ゆく".to_string()],
             use_frequency: None,
@@ -221,7 +221,7 @@ mod tests {
     #[test]
     fn should_parse_from_word() {
         let word = JpToEnglishWord {
-            id: "1000".to_string(),
+            id: 1000,
             kanji: Some(vec!["眠い".to_string()]),
             kana_reading: vec!["ねむい".to_string()],
             use_frequency: None,
@@ -230,8 +230,7 @@ mod tests {
             verb_conjugations: None,
         };
 
-        let result =
-            WordEntry::from_word(&word).expect("word has a kanji, so this should be Some");
+        let result = WordEntry::from_word(&word).expect("word has a kanji, so this should be Some");
 
         assert_eq!("眠い", result.main_kanji);
         assert_eq!(vec!["ねむい"], result.kana_reading);
