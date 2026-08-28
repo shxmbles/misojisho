@@ -1,5 +1,7 @@
 use std::ops::Range;
 
+/// A drag-to-select text range; `selection_reversed` tracks which edge is moving 
+/// so `selected_range` stays normalized (start <= end).
 pub struct Selection {
     pub selected_range: Range<usize>,
     pub selection_reversed: bool,
