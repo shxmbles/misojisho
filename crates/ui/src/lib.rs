@@ -6,6 +6,7 @@ mod components;
 mod results_list;
 mod search_page;
 mod selection;
+mod text;
 mod traits;
 mod utils;
 mod word_detail;

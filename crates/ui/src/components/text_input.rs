@@ -2,7 +2,7 @@ use std::{ops::Range, rc::Rc};
 
 use gpui::*;
 
-use crate::selection::Selection;
+use crate::{selection::Selection, text::surrounding_word_range::surrounding_word_range};
 
 // The actions we will use with KeyBindings
 actions!(
@@ -16,6 +16,7 @@ actions!(
         SelectAll,
         CopyText,
         Cut,
+        Paste,
         SecondaryShiftLeft,
         SecondaryShiftRight,
         SecondaryBackspace,
@@ -137,9 +138,8 @@ impl TextInput {
         cx: &mut Context<Self>,
     ) {
         window.focus(&self.focus_handle(cx));
-        self.selection.start_selecting();
         let offset = self.index_for_mouse_position(event.position);
-        self.move_to(offset, cx);
+        self.handle_click(offset, event.click_count, cx);
     }
 
     /// When the left mouse button is released, stops selecting.
@@ -173,6 +173,20 @@ impl TextInput {
             let offset = self.index_for_mouse_position(event.position);
             self.select_to(offset, cx);
         }
+    }
+
+    fn double_click(&mut self, offset: usize, cx: &mut Context<Self>) {
+        let range = surrounding_word_range(&self.content, offset);
+        self.selection.move_to(range.start);
+        self.selection.select_to(range.end);
+        cx.notify();
+    }
+
+    /// Selects the entire 'sentence'
+    fn triple_click(&mut self, cx: &mut Context<Self>) {
+        self.selection.move_to(0);
+        self.selection.select_to(self.content.len());
+        cx.notify();
     }
 
     // Everything EntityInputHandler sends/expects is in UTF-16 code units
@@ -328,6 +342,28 @@ impl TextInput {
         if !self.selection.selected_range.is_empty() {
             let selected_content = self.content[self.selection.selected_range.clone()].to_string();
             cx.write_to_clipboard(ClipboardItem::new_string(selected_content));
+        }
+    }
+
+    fn paste(&mut self, _: &Paste, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(copied_string) = cx.read_from_clipboard().and_then(|i| i.text()) else {
+            return;
+        };
+
+        let sanitized = copied_string.replace(['\n', '\r'], " ");
+        self.replace_text_in_range(None, &sanitized, window, cx);
+        cx.notify();
+    }
+
+    fn handle_click(&mut self, offset: usize, click_count: usize, cx: &mut Context<Self>) {
+        match click_count {
+            2 => self.double_click(offset, cx),
+            3 => self.triple_click(cx),
+            _ => {
+                self.selection.start_selecting();
+                self.selection.move_to(offset);
+                cx.notify();
+            }
         }
     }
 
@@ -731,6 +767,7 @@ impl Render for TextInput {
             .on_action(cx.listener(Self::undo))
             .on_action(cx.listener(Self::enter))
             .on_action(cx.listener(Self::cut))
+            .on_action(cx.listener(Self::paste))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
@@ -762,6 +799,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("escape", Esc, None),
         KeyBinding::new("secondary-z", Undo, None),
         KeyBinding::new("enter", Enter, None),
+        KeyBinding::new("secondary-v", Paste, None),
     ]);
 }
 
@@ -772,7 +810,7 @@ mod tests {
     use crate::selection::Selection;
 
     use super::{
-        Backspace, CopyText, Cut, Esc, Left, Right, SecondaryBackspace, SecondaryLeft,
+        Backspace, CopyText, Cut, Esc, Left, Paste, Right, SecondaryBackspace, SecondaryLeft,
         SecondaryRight, SecondaryShiftLeft, SecondaryShiftRight, SelectAll, TextInput, Undo,
     };
 
@@ -1362,6 +1400,111 @@ mod tests {
             let clipboard_text = cx.read_from_clipboard().and_then(|item| item.text());
             assert_eq!(clipboard_text, Some("hello".to_string()));
             assert_eq!(text_input.content.to_string(), "hello world");
+        });
+    }
+
+    // `secondary-v` paste
+
+    #[gpui::test]
+    fn should_insert_clipboard_text_on_paste(cx: &mut TestAppContext) {
+        let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
+            content: "".into(),
+            placeholder: "".into(),
+            selection: Selection::new(0..0),
+            marked_range: None,
+            focus_handle: cx.focus_handle(),
+            on_submit: None,
+            last_layout: None,
+            last_bounds: None,
+            undo_stack: vec![],
+            last_edit_end: None,
+            last_edit_was_insertion: None,
+        });
+
+        text_input.update_in(cx, |text_input, window, cx| {
+            cx.write_to_clipboard(ClipboardItem::new_string("hello".to_string()));
+            text_input.paste(&Paste, window, cx);
+        });
+
+        text_input.read_with(cx, |text_input, _| {
+            assert_eq!(text_input.content.to_string(), "hello");
+        });
+    }
+
+    #[gpui::test]
+    fn should_replace_selected_text_on_paste(cx: &mut TestAppContext) {
+        let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
+            content: "hello world".into(),
+            placeholder: "".into(),
+            selection: Selection::new(0..5),
+            marked_range: None,
+            focus_handle: cx.focus_handle(),
+            on_submit: None,
+            last_layout: None,
+            last_bounds: None,
+            undo_stack: vec![],
+            last_edit_end: None,
+            last_edit_was_insertion: None,
+        });
+
+        text_input.update_in(cx, |text_input, window, cx| {
+            cx.write_to_clipboard(ClipboardItem::new_string("goodbye".to_string()));
+            text_input.paste(&Paste, window, cx);
+        });
+
+        text_input.read_with(cx, |text_input, _| {
+            assert_eq!(text_input.content.to_string(), "goodbye world");
+        });
+    }
+
+    #[gpui::test]
+    fn should_replace_newlines_with_spaces_on_paste(cx: &mut TestAppContext) {
+        let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
+            content: "".into(),
+            placeholder: "".into(),
+            selection: Selection::new(0..0),
+            marked_range: None,
+            focus_handle: cx.focus_handle(),
+            on_submit: None,
+            last_layout: None,
+            last_bounds: None,
+            undo_stack: vec![],
+            last_edit_end: None,
+            last_edit_was_insertion: None,
+        });
+
+        text_input.update_in(cx, |text_input, window, cx| {
+            cx.write_to_clipboard(ClipboardItem::new_string("hello\nworld".to_string()));
+            text_input.paste(&Paste, window, cx);
+        });
+
+        text_input.read_with(cx, |text_input, _| {
+            assert_eq!(text_input.content.to_string(), "hello world");
+        });
+    }
+
+    #[gpui::test]
+    fn should_do_nothing_on_paste_when_clipboard_has_no_text(cx: &mut TestAppContext) {
+        let (text_input, cx) = cx.add_window_view(|_window, cx| TextInput {
+            content: "hello".into(),
+            placeholder: "".into(),
+            selection: Selection::new(5..5),
+            marked_range: None,
+            focus_handle: cx.focus_handle(),
+            on_submit: None,
+            last_layout: None,
+            last_bounds: None,
+            undo_stack: vec![],
+            last_edit_end: None,
+            last_edit_was_insertion: None,
+        });
+
+        text_input.update_in(cx, |text_input, window, cx| {
+            text_input.paste(&Paste, window, cx);
+        });
+
+        text_input.read_with(cx, |text_input, _| {
+            assert_eq!(text_input.content.to_string(), "hello");
         });
     }
 
