@@ -9,7 +9,7 @@ pub trait StyledExt: Styled + Sized {
         self.flex().flex_row()
     }
 
-    fn centered(self) -> Self {
+    fn _centered(self) -> Self {
         self.items_center().justify_center()
     }
 }
