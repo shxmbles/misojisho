@@ -123,7 +123,7 @@ mod tests {
         JpToEnglishDictionary {
             words: vec![
                 JpToEnglishWord {
-                    id: "1000".to_string(),
+                    id: 1000,
                     kanji: Some(vec!["眠い".to_string()]),
                     kana_reading: vec!["ねむい".to_string()],
                     use_frequency: None,
@@ -132,7 +132,7 @@ mod tests {
                     verb_conjugations: None,
                 },
                 JpToEnglishWord {
-                    id: "1001".to_string(),
+                    id: 1001,
                     kanji: Some(vec!["行く".to_string()]),
                     kana_reading: vec!["いく".to_string()],
                     use_frequency: None,
@@ -141,7 +141,7 @@ mod tests {
                     verb_conjugations: None,
                 },
                 JpToEnglishWord {
-                    id: "1002".to_string(),
+                    id: 1002,
                     kanji: Some(vec!["猫".to_string()]),
                     kana_reading: vec!["ねこ".to_string()],
                     use_frequency: None,

@@ -82,10 +82,10 @@ impl Parser {
         let mut seen_pos: HashSet<PartOfSpeech> = HashSet::new();
 
         for word in &entries {
-            let entry_seq = word
+            let entry_seq: Option<u32> = word
                 .split_once(Self::ENTRY_SEQ_START)
                 .and_then(|(_, after)| after.split_once(Self::ENTRY_SEQ_END))
-                .map(|(inner, _)| inner);
+                .and_then(|(inner, _)| inner.parse().ok());
             let keb = Self::extract_all_tags(word, Self::KEB_START, Self::KEB_END);
             let reb = Self::extract_all_tags(word, Self::REB_START, Self::REB_END);
             let ke_pri = Self::extract_all_tags(word, Self::KE_PRI_START, Self::KE_PRI_END);
@@ -142,7 +142,7 @@ impl Parser {
                     .filter(|v| !v.is_empty());
 
                 dict.words.push(JpToEnglishWord {
-                    id: entry_seq.to_owned(),
+                    id: entry_seq,
                     kanji,
                     kana_reading,
                     use_frequency,
@@ -290,7 +290,7 @@ mod tests {
         assert_eq!(actual.words.len(), 1);
 
         let word = &actual.words[0];
-        assert_eq!(word.id, "1358280");
+        assert_eq!(word.id, 1358280);
         assert_eq!(word.kanji, Some(vec!["食べる".to_string()]));
         assert_eq!(word.kana_reading, vec!["たべる".to_string()]);
         assert_eq!(word.use_frequency, Some(vec![UseFrequency::Ichi(1)]));
@@ -325,8 +325,8 @@ mod tests {
         )
         .expect("parse_xml should succeed for a well-formed file");
 
-        let ids: Vec<&str> = actual.words.iter().map(|w| w.id.as_str()).collect();
-        assert_eq!(ids, vec!["1358280", "1587040"]);
+        let ids: Vec<u32> = actual.words.iter().map(|w| w.id).collect();
+        assert_eq!(ids, vec![1358280, 1587040]);
     }
 
     #[test]
