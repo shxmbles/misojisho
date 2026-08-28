@@ -1,21 +1,34 @@
 use gpui::{
-    AppContext, Context, Entity, IntoElement, ParentElement, Render, Styled, Window, div, rgb,
+    AnyElement, AppContext, Context, Entity, IntoElement, ParentElement, Render, Styled, Window,
+    div, rgb,
 };
 use misojisho_core::jp_to_english_dictionary::JpToEnglishDictionary;
 
 use crate::{
-    results_list::WordEntry, search_page::SearchResultsView, traits::styled_ext::StyledExt,
-    utils::title_bar_height, word_detail::WordDetailView,
+    bottom_bar::BottomBar, results_list::WordEntry, search_page::SearchResultsView,
+    sidebar::Sidebar, traits::styled_ext::StyledExt, utils::title_bar_height,
+    word_detail::WordDetailView,
 };
 
 pub struct AppRoot {
     search_results: Entity<SearchResultsView>,
     current: Screen,
+    sidebar: Entity<Sidebar>,
+    bottom_bar: Entity<BottomBar>,
 }
 
 impl AppRoot {
     pub fn new(dictionary: JpToEnglishDictionary, cx: &mut Context<Self>) -> Self {
         let app_root = cx.entity();
+
+        let bottom_bar = cx.new(|_cx| {
+            let app_root = app_root.clone();
+            BottomBar::new().on_toggle_sidebar(move |_window, cx| {
+                app_root.update(cx, |app_root, cx| app_root.toggle_sidebar(cx))
+            })
+        });
+
+        let sidebar = cx.new(|_cx| Sidebar::new());
 
         let search_results = cx.new(|cx| {
             SearchResultsView::new(dictionary, cx, move |word_entry, _window, cx| {
@@ -29,6 +42,8 @@ impl AppRoot {
         Self {
             search_results,
             current: Screen::SearchResults,
+            sidebar,
+            bottom_bar,
         }
     }
 
@@ -50,26 +65,42 @@ impl AppRoot {
         self.current = Screen::SearchResults;
         cx.notify();
     }
+
+    fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
+        self.sidebar.update(cx, |sidebar, cx| {
+            sidebar.toggle(cx);
+        });
+    }
 }
 
 impl Render for AppRoot {
     fn render(&mut self, window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        match &self.current {
-            Screen::SearchResults => {
-                return div()
-                    .v_flex()
-                    .size_full()
-                    .bg(rgb(0xFCFCFD))
-                    // Reserved space for the (now-transparent) native titlebar's
-                    // traffic-light buttons. Empty on purpose, not padding on
-                    // real content.
-                    .child(div().h(title_bar_height(window)).w_full().bg(rgb(0xB9BBC6)))
-                    .child(div().flex_1().child(self.search_results.clone()));
-            }
-            Screen::WordDetail(word_detail) => {
-                return div().v_flex().size_full().child(word_detail.clone());
-            }
-        }
+        let screen: AnyElement = match &self.current {
+            Screen::SearchResults => div()
+                .v_flex()
+                .size_full()
+                .bg(rgb(0xFCFCFD))
+                .child(div().h(title_bar_height(window)).w_full().bg(rgb(0xB9BBC6)))
+                .child(div().flex_1().child(self.search_results.clone()))
+                .into_any_element(),
+            Screen::WordDetail(word_detail) => div()
+                .v_flex()
+                .size_full()
+                .child(word_detail.clone())
+                .into_any_element(),
+        };
+
+        div()
+            .v_flex()
+            .size_full()
+            .child(
+                div()
+                    .h_flex()
+                    .flex_1()
+                    .child(self.sidebar.clone())
+                    .child(div().flex_1().h_full().child(screen)),
+            )
+            .child(self.bottom_bar.clone())
     }
 }
 

@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use gpui::{
     AppContext, Context, Entity, InteractiveElement, IntoElement, ParentElement, Render,
-    StatefulInteractiveElement, Styled, Window, div, rgb,
+    StatefulInteractiveElement, Styled, Window, div, px, rgb,
 };
 
 use crate::{
@@ -90,10 +90,9 @@ impl Render for WordDetail {
     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .size_full()
-            .flex_1()
             .child(
                 div()
-                    .centered()
+                    .items_center()
                     .v_flex()
                     .child(
                         div()
@@ -105,6 +104,7 @@ impl Render for WordDetail {
                     .child(
                         div()
                             .v_flex()
+                            .max_w(px(600.))
                             .child(div().child(self.primary_meaning.clone()).bg(rgb(0xff0000)))
                             .child(self.meanings.clone())
                             .text_color(rgb(0x1C2024)),
