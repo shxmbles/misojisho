@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/core", "crates/ui"]
+members = ["crates/core", "crates/db", "crates/ui"]
 
 [package]
 name = "misojisho"
@@ -9,4 +9,5 @@ edition = "2024"
 
 [dependencies]
 misojisho-core = { path = "crates/core" }
+misojisho-db = { path = "crates/db" }
 misojisho-ui = { path = "crates/ui" }
