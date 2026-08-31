@@ -1,8 +1,10 @@
 use gpui::App;
 
+mod button;
 mod selectable_text;
 mod text_input;
 
+pub use button::Button;
 pub use selectable_text::SelectableText;
 pub use text_input::TextInput;
 

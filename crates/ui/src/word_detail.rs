@@ -6,9 +6,9 @@ use gpui::{
 };
 
 use crate::{
-    components::SelectableText,
+    components::{Button, SelectableText},
     results_list::{PosTag, WordEntry},
-    traits::styled_ext::StyledExt,
+    traits::{clickable::Clickable, styled_ext::StyledExt},
     utils::title_bar_height,
 };
 
@@ -121,7 +121,12 @@ impl Render for WordDetail {
                                     .rounded_full()
                                     .bg(p.bg_color)
                             })),
-                    ),
+                    )
+                    .child(
+                        Button::new("add-button", "Add to list")
+                            .on_click(move |_click_event, _window, _cx| println!("hit here")),
+                    )
+                    .text_color(rgb(0x0000000)),
             )
             .text_color(rgb(0xffffff))
     }
